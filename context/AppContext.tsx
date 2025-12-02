@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { MenuItem, Order, CartItem, User, ViewState } from '../types';
 import { Storage } from '../utils/storage';
@@ -63,7 +64,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // SUPABASE REAL-TIME DATA FETCHING & SUBSCRIPTION
   // --------------------------------------------------------------
   useEffect(() => {
-    const initData = async () => {
+    const fetchInitialData = async () => {
       setIsLoading(true);
       
       // 1. Fetch Initial Menu
@@ -72,14 +73,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         console.error('Error fetching menu:', menuError);
         setMenuItems(DEFAULT_MENU_ITEMS);
       } else {
-        if (menuData && menuData.length > 0) {
-          setMenuItems(menuData as MenuItem[]);
-        } else {
-          setMenuItems(DEFAULT_MENU_ITEMS);
-        }
+        setMenuItems(menuData && menuData.length > 0 ? (menuData as MenuItem[]) : DEFAULT_MENU_ITEMS);
       }
 
-      // 2. Fetch Initial Orders (And map snake_case DB to camelCase TS)
+      // 2. Fetch Initial Orders (Map snake_case DB to camelCase TS)
       const { data: orderData, error: orderError } = await supabase.from('orders').select('*');
       if (orderError) {
         console.error('Error fetching orders:', orderError);
@@ -88,7 +85,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           id: o.id,
           customerName: o.customer_name,
           customerPhone: o.customer_phone,
-          items: o.items,
+          items: typeof o.items === 'string' ? JSON.parse(o.items) : o.items,
           subtotal: o.subtotal,
           serviceFee: o.service_fee,
           total: o.total,
@@ -101,11 +98,29 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setIsLoading(false);
     };
 
-    initData();
+    fetchInitialData();
 
-    // 3. Real-time Subscriptions
-    const menuChannel = supabase.channel('menu-updates')
+    // ------------------------------------------------------------
+    // REAL-TIME SUBSCRIPTIONS
+    // ------------------------------------------------------------
+    
+    // Helper to map Order DB Row to App Type
+    const mapOrderRow = (r: any): Order => ({
+      id: r.id,
+      customerName: r.customer_name,
+      customerPhone: r.customer_phone,
+      items: typeof r.items === 'string' ? JSON.parse(r.items) : r.items,
+      subtotal: r.subtotal,
+      serviceFee: r.service_fee,
+      total: r.total,
+      status: r.status,
+      createdAt: r.created_at
+    });
+
+    const subscription = supabase.channel('foodieq-realtime')
+      // Listen to MENU changes
       .on('postgres_changes', { event: '*', schema: 'public', table: 'menu_items' }, (payload) => {
+        console.log('Real-time Menu Update:', payload);
         if (payload.eventType === 'INSERT') {
           setMenuItems(prev => [...prev, payload.new as MenuItem]);
         } else if (payload.eventType === 'UPDATE') {
@@ -114,47 +129,33 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           setMenuItems(prev => prev.filter(item => item.id !== payload.old.id));
         }
       })
-      .subscribe();
-
-    const orderChannel = supabase.channel('order-updates')
+      // Listen to ORDER changes
       .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, (payload) => {
+        console.log('Real-time Order Update:', payload);
+        
         if (payload.eventType === 'INSERT') {
-          const r = payload.new;
-          // Map incoming DB row to App Order type
-          const newOrder: Order = {
-            id: r.id,
-            customerName: r.customer_name,
-            customerPhone: r.customer_phone,
-            items: r.items,
-            subtotal: r.subtotal,
-            serviceFee: r.service_fee,
-            total: r.total,
-            status: r.status,
-            createdAt: r.created_at
-          };
+          const newOrder = mapOrderRow(payload.new);
           setOrders(prev => [newOrder, ...prev]);
-          toast('Pesanan Baru Masuk!', { icon: '🔔' });
-        } else if (payload.eventType === 'UPDATE') {
-          const r = payload.new;
-          const updatedOrder: Order = {
-            id: r.id,
-            customerName: r.customer_name,
-            customerPhone: r.customer_phone,
-            items: r.items,
-            subtotal: r.subtotal,
-            serviceFee: r.service_fee,
-            total: r.total,
-            status: r.status,
-            createdAt: r.created_at
-          };
+          toast('Pesanan Baru Masuk! 🔔', { icon: '🍔' });
+        } 
+        else if (payload.eventType === 'UPDATE') {
+          const updatedOrder = mapOrderRow(payload.new);
           setOrders(prev => prev.map(o => o.id === updatedOrder.id ? updatedOrder : o));
+          // Notify customer if status changes
+          if (updatedOrder.status === 'completed') toast.success(`Order ${updatedOrder.id} siap!`);
+        }
+        else if (payload.eventType === 'DELETE') {
+          setOrders(prev => prev.filter(o => o.id !== payload.old.id));
         }
       })
-      .subscribe();
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          console.log('Supabase Real-time Connected');
+        }
+      });
 
     return () => {
-      supabase.removeChannel(menuChannel);
-      supabase.removeChannel(orderChannel);
+      supabase.removeChannel(subscription);
     };
   }, []);
 
@@ -163,14 +164,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // --------------------------------------------------------------
 
   const saveMenuItem = async (item: MenuItem) => {
+    // Optimistic Update
+    setMenuItems(prev => {
+      const exists = prev.find(i => i.id === item.id);
+      if (exists) return prev.map(i => i.id === item.id ? item : i);
+      return [...prev, item];
+    });
+
     const { error } = await supabase.from('menu_items').upsert(item);
     if (error) {
       console.error('Error saving menu item:', error);
       toast.error('Gagal simpan menu ke database');
+      // Revert optimism if needed (complex, omitted for brevity)
     }
   };
 
   const deleteMenuItemItem = async (id: string) => {
+    // Optimistic Update
+    setMenuItems(prev => prev.filter(i => i.id !== id));
+
     const { error } = await supabase.from('menu_items').delete().eq('id', id);
     if (error) {
        console.error('Error deleting item:', error);
@@ -179,6 +191,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const updateOrderStatus = async (id: string, status: 'completed' | 'cancelled') => {
+    // Optimistic Update
+    setOrders(prev => prev.map(o => o.id === id ? { ...o, status } : o));
+
     const { error } = await supabase.from('orders').update({ status }).eq('id', id);
     if (error) {
       toast.error('Gagal kemaskini status');

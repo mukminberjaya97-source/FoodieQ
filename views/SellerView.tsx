@@ -4,7 +4,7 @@ import { useApp } from '../context/AppContext';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { LayoutDashboard, ShoppingBag, Utensils, LogOut, Moon, Sun, Plus, Pencil, Trash2, Check, X, Upload, TrendingUp, DollarSign, Eye, Box, Image as ImageIcon } from 'lucide-react';
+import { LayoutDashboard, ShoppingBag, Utensils, LogOut, Moon, Sun, Plus, Pencil, Trash2, Check, X, Upload, TrendingUp, DollarSign, Eye, Box, Image as ImageIcon, EyeOff } from 'lucide-react';
 import { MenuItem } from '../types';
 import toast from 'react-hot-toast';
 
@@ -49,6 +49,12 @@ export const SellerView: React.FC = () => {
       await deleteMenuItemItem(id);
       toast.success('Item deleted');
     }
+  };
+  
+  const toggleAvailability = async (item: MenuItem) => {
+      const updatedItem = { ...item, available: !item.available };
+      await saveMenuItem(updatedItem);
+      toast.success(`Menu ${updatedItem.available ? 'Visible' : 'Hidden'}`);
   };
 
   const processFile = (file: File) => {
@@ -228,12 +234,18 @@ export const SellerView: React.FC = () => {
         {activeTab === 'menu' && (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 animate-fade-in">
             {menuItems.map(item => (
-              <div key={item.id} className="bg-white dark:bg-dark-surface rounded-[2rem] p-4 border border-slate-100 dark:border-white/5 hover:border-primary/50 transition-colors group relative shadow-sm hover:shadow-xl dark:hover:shadow-none">
-                <div className="h-40 bg-cream dark:bg-white/5 rounded-[1.5rem] mb-4 flex items-center justify-center overflow-hidden">
+              <div key={item.id} className={`bg-white dark:bg-dark-surface rounded-[2rem] p-4 border transition-all duration-300 group relative shadow-sm hover:shadow-xl dark:hover:shadow-none ${!item.available ? 'opacity-70 border-dashed border-slate-300' : 'border-slate-100 dark:border-white/5 hover:border-primary/50'}`}>
+                <div className="h-40 bg-cream dark:bg-white/5 rounded-[1.5rem] mb-4 flex items-center justify-center overflow-hidden relative">
                    {(item.image.startsWith('http') || item.image.startsWith('data:')) ? (
-                      <img src={item.image} alt={item.name} className="h-32 object-contain group-hover:scale-110 transition-transform drop-shadow-lg" />
+                      <img src={item.image} alt={item.name} className={`h-32 object-contain transition-transform drop-shadow-lg ${item.available ? 'group-hover:scale-110' : 'grayscale'}`} />
                     ) : (
                       <span className="text-6xl filter drop-shadow-md">{item.image}</span>
+                    )}
+                    
+                    {!item.available && (
+                        <div className="absolute inset-0 bg-black/10 flex items-center justify-center">
+                            <span className="bg-red-500 text-white text-xs font-bold px-3 py-1 rounded-full">HIDDEN</span>
+                        </div>
                     )}
                 </div>
                 <h3 className="font-bold dark:text-white truncate text-lg">{item.name}</h3>
@@ -241,6 +253,13 @@ export const SellerView: React.FC = () => {
                 <div className="flex justify-between items-center">
                   <span className="font-black text-slate-900 dark:text-white text-lg">RM {item.price.toFixed(2)}</span>
                   <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button 
+                        onClick={() => toggleAvailability(item)} 
+                        className={`p-2 rounded-lg transition-colors ${item.available ? 'bg-slate-100 dark:bg-white/10 text-slate-500' : 'bg-green-100 text-green-600'}`}
+                        title={item.available ? "Hide Menu" : "Show Menu"}
+                    >
+                        {item.available ? <Eye size={18}/> : <EyeOff size={18}/>}
+                    </button>
                     <button onClick={() => setEditingItem(item)} className="p-2 bg-slate-100 dark:bg-white/10 rounded-lg text-slate-600 dark:text-slate-300 hover:text-primary dark:hover:text-primary transition-colors"><Pencil size={18}/></button>
                     <button onClick={() => handleDeleteMenu(item.id)} className="p-2 bg-red-50 dark:bg-red-900/20 rounded-lg text-red-500 hover:bg-red-100 dark:hover:bg-red-900/40 transition-colors"><Trash2 size={18}/></button>
                   </div>
