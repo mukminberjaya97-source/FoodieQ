@@ -26,6 +26,7 @@ interface AppContextType {
   toggleTheme: () => void;
   currentView: ViewState;
   setCurrentView: (view: ViewState) => void;
+  isLoading: boolean;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -37,6 +38,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [cart, setCart] = useState<CartItem[]>([]);
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
   const [currentView, setCurrentView] = useState<ViewState>('login');
+  const [isLoading, setIsLoading] = useState(true);
 
   // Load Theme
   useEffect(() => {
@@ -51,29 +53,45 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // SUPABASE REAL-TIME DATA FETCHING & SUBSCRIPTION
   // --------------------------------------------------------------
   useEffect(() => {
-    // 1. Fetch Initial Menu
-    const fetchMenu = async () => {
-      const { data, error } = await supabase.from('menu_items').select('*');
-      if (error) console.error('Error fetching menu:', error);
-      else {
-        // If DB is empty, use default and insert them (optional, logic omitted for safety)
-        if (data && data.length > 0) {
-          setMenuItems(data as MenuItem[]);
+    const initData = async () => {
+      setIsLoading(true);
+      
+      // 1. Fetch Initial Menu
+      const { data: menuData, error: menuError } = await supabase.from('menu_items').select('*');
+      if (menuError) {
+        console.error('Error fetching menu:', menuError);
+        setMenuItems(DEFAULT_MENU_ITEMS);
+      } else {
+        if (menuData && menuData.length > 0) {
+          setMenuItems(menuData as MenuItem[]);
         } else {
-          setMenuItems(DEFAULT_MENU_ITEMS); // Fallback if DB empty
+          setMenuItems(DEFAULT_MENU_ITEMS);
         }
       }
+
+      // 2. Fetch Initial Orders (And map snake_case DB to camelCase TS)
+      const { data: orderData, error: orderError } = await supabase.from('orders').select('*');
+      if (orderError) {
+        console.error('Error fetching orders:', orderError);
+      } else if (orderData) {
+        const mappedOrders: Order[] = orderData.map((o: any) => ({
+          id: o.id,
+          customerName: o.customer_name,
+          customerPhone: o.customer_phone,
+          items: o.items,
+          subtotal: o.subtotal,
+          serviceFee: o.service_fee,
+          total: o.total,
+          status: o.status,
+          createdAt: o.created_at
+        }));
+        setOrders(mappedOrders);
+      }
+      
+      setIsLoading(false);
     };
 
-    // 2. Fetch Initial Orders
-    const fetchOrders = async () => {
-      const { data, error } = await supabase.from('orders').select('*');
-      if (error) console.error('Error fetching orders:', error);
-      else if (data) setOrders(data as Order[]);
-    };
-
-    fetchMenu();
-    fetchOrders();
+    initData();
 
     // 3. Real-time Subscriptions
     const menuChannel = supabase.channel('menu-updates')
@@ -91,11 +109,35 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const orderChannel = supabase.channel('order-updates')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, (payload) => {
         if (payload.eventType === 'INSERT') {
-          const newOrder = payload.new as Order;
+          const r = payload.new;
+          // Map incoming DB row to App Order type
+          const newOrder: Order = {
+            id: r.id,
+            customerName: r.customer_name,
+            customerPhone: r.customer_phone,
+            items: r.items,
+            subtotal: r.subtotal,
+            serviceFee: r.service_fee,
+            total: r.total,
+            status: r.status,
+            createdAt: r.created_at
+          };
           setOrders(prev => [newOrder, ...prev]);
           toast('Pesanan Baru Masuk!', { icon: '🔔' });
         } else if (payload.eventType === 'UPDATE') {
-          setOrders(prev => prev.map(o => o.id === payload.new.id ? payload.new as Order : o));
+          const r = payload.new;
+          const updatedOrder: Order = {
+            id: r.id,
+            customerName: r.customer_name,
+            customerPhone: r.customer_phone,
+            items: r.items,
+            subtotal: r.subtotal,
+            serviceFee: r.service_fee,
+            total: r.total,
+            status: r.status,
+            createdAt: r.created_at
+          };
+          setOrders(prev => prev.map(o => o.id === updatedOrder.id ? updatedOrder : o));
         }
       })
       .subscribe();
@@ -111,7 +153,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // --------------------------------------------------------------
 
   const saveMenuItem = async (item: MenuItem) => {
-    // Upsert (Insert or Update based on ID)
     const { error } = await supabase.from('menu_items').upsert(item);
     if (error) {
       console.error('Error saving menu item:', error);
@@ -214,33 +255,42 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       createdAt: new Date().toISOString()
     };
 
-    // 1. Save to Supabase
-    const { error } = await supabase.from('orders').insert(newOrder);
+    // 1. Save to Supabase (MAP TS camelCase keys to DB snake_case columns)
+    const dbOrder = {
+      id: newOrder.id,
+      customer_name: newOrder.customerName,
+      customer_phone: newOrder.customerPhone,
+      items: newOrder.items,
+      subtotal: newOrder.subtotal,
+      service_fee: newOrder.serviceFee,
+      total: newOrder.total,
+      status: newOrder.status,
+      created_at: newOrder.createdAt
+    };
+
+    const { error } = await supabase.from('orders').insert(dbOrder);
+    
     if (error) {
       console.error('Supabase Error:', error);
-      toast.error('Gagal menghantar pesanan ke database.');
+      toast.error(`Gagal: ${error.message}`);
       return null;
     }
 
-    // 2. Google Sheet Integration (Fire and forget)
+    // 2. Google Sheet Integration
     if (GOOGLE_SHEET_SCRIPT_URL && GOOGLE_SHEET_SCRIPT_URL.startsWith('https')) {
       try {
-        const formData = new URLSearchParams();
-        formData.append('order_id', newOrder.id);
-        formData.append('date', new Date(newOrder.createdAt).toLocaleString('ms-MY', { 
-          year: 'numeric', month: '2-digit', day: '2-digit', 
-          hour: '2-digit', minute: '2-digit', second: '2-digit',
-          hour12: true
-        }));
-        formData.append('customer_name', newOrder.customerName);
-        formData.append('customer_phone', newOrder.customerPhone);
-        formData.append('items', newOrder.items.map(i => `${i.name} (x${i.quantity})`).join(', '));
-        formData.append('total', newOrder.total.toFixed(2));
-        formData.append('status', newOrder.status);
+        const params = new URLSearchParams();
+        params.append('order_id', newOrder.id);
+        params.append('date', new Date(newOrder.createdAt).toLocaleString('ms-MY'));
+        params.append('customer_name', newOrder.customerName);
+        params.append('customer_phone', newOrder.customerPhone);
+        params.append('items', newOrder.items.map(i => `${i.name} (x${i.quantity})`).join(', '));
+        params.append('total', newOrder.total.toFixed(2));
+        params.append('status', newOrder.status);
 
         fetch(GOOGLE_SHEET_SCRIPT_URL, {
           method: 'POST',
-          body: formData,
+          body: params,
           mode: 'no-cors',
           headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
         }).catch(err => console.error('Google Sheet Sync Error:', err));
@@ -286,7 +336,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       orders, setOrders, updateOrderStatus,
       cart, addToCart, removeFromCart, updateCartQuantity, clearCart, placeOrder,
       theme, toggleTheme,
-      currentView, setCurrentView
+      currentView, setCurrentView,
+      isLoading
     }}>
       <Toaster position="top-right" toastOptions={{
         style: {
