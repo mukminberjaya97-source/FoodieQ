@@ -68,7 +68,11 @@ export const SellerView: React.FC = () => {
 
   const processFile = (file: File) => {
     if (file) {
-      if (file.size > 350 * 1024) { toast.error('Image must be < 350KB'); return; }
+      // LIMIT INCREASED TO 5MB (5 * 1024 * 1024 bytes)
+      if (file.size > 5 * 1024 * 1024) { 
+        toast.error('Saiz gambar mestilah kurang daripada 5MB'); 
+        return; 
+      }
       const reader = new FileReader();
       reader.onloadend = () => setEditingItem(prev => prev ? ({ ...prev, image: reader.result as string }) : null);
       reader.readAsDataURL(file);
@@ -349,7 +353,7 @@ export const SellerView: React.FC = () => {
                          <div className="flex flex-col items-center text-slate-400 group-hover:text-primary transition-colors">
                             <Upload size={32} className="mb-2" />
                             <p className="text-sm font-bold">Drop realistic 3D image here</p>
-                            <p className="text-xs opacity-70">or click to upload (PNG/WebP transparent)</p>
+                            <p className="text-xs opacity-70">or click to upload (Max 5MB)</p>
                          </div>
                       </div>
                     </div>
