@@ -4,12 +4,12 @@ import { useApp } from '../context/AppContext';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { LayoutDashboard, ShoppingBag, Utensils, LogOut, Moon, Sun, Plus, Pencil, Trash2, Check, X, Upload, TrendingUp, DollarSign, Eye, Box, Image as ImageIcon, EyeOff } from 'lucide-react';
+import { LayoutDashboard, ShoppingBag, Utensils, LogOut, Moon, Sun, Plus, Pencil, Trash2, Check, X, Upload, TrendingUp, DollarSign, Eye, Box, Image as ImageIcon, EyeOff, RotateCcw } from 'lucide-react';
 import { MenuItem } from '../types';
 import toast from 'react-hot-toast';
 
 export const SellerView: React.FC = () => {
-  const { orders, menuItems, saveMenuItem, deleteMenuItemItem, updateOrderStatus, theme, toggleTheme, logout } = useApp();
+  const { orders, menuItems, saveMenuItem, deleteMenuItemItem, updateOrderStatus, deleteOrder, theme, toggleTheme, logout, seedDatabase } = useApp();
   const [activeTab, setActiveTab] = useState<'dashboard' | 'orders' | 'menu'>('dashboard');
   const [editingItem, setEditingItem] = useState<Partial<MenuItem> | null>(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -21,6 +21,7 @@ export const SellerView: React.FC = () => {
   const completedOrders = orders.filter(o => o.status === 'completed');
   const totalRevenue = completedOrders.reduce((sum, o) => sum + o.total, 0);
 
+  // Safe Chart Data Logic
   const salesData = orders.reduce((acc: any[], order) => {
     if (order.status !== 'completed') return acc;
     const date = new Date(order.createdAt).toLocaleDateString(undefined, { weekday: 'short' });
@@ -28,7 +29,10 @@ export const SellerView: React.FC = () => {
     if (existing) existing.sales += order.total;
     else acc.push({ date, sales: order.total });
     return acc;
-  }, []).slice(-7);
+  }, []);
+  
+  // Fill empty days if needed or just show what we have. If empty, provide placeholder.
+  const chartData = salesData.length > 0 ? salesData.slice(-7) : [{ date: 'Today', sales: 0 }];
 
   const handleSaveMenu = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -47,8 +51,13 @@ export const SellerView: React.FC = () => {
   const handleDeleteMenu = async (id: string) => {
     if (confirm('Delete this item?')) {
       await deleteMenuItemItem(id);
-      toast.success('Item deleted');
     }
+  };
+
+  const handleDeleteOrder = async (id: string) => {
+     if(confirm('Padam rekod pesanan ini secara kekal?')) {
+        await deleteOrder(id);
+     }
   };
   
   const toggleAvailability = async (item: MenuItem) => {
@@ -69,27 +78,6 @@ export const SellerView: React.FC = () => {
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) processFile(file);
-  };
-
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(true);
-  };
-
-  const handleDragLeave = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(false);
-  };
-
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(false);
-    const file = e.dataTransfer.files?.[0];
-    if (file && file.type.startsWith('image/')) {
-      processFile(file);
-    } else {
-      toast.error('Please drop a valid image file');
-    }
   };
 
   return (
@@ -178,7 +166,7 @@ export const SellerView: React.FC = () => {
               <h3 className="font-bold text-lg mb-6 dark:text-white flex items-center gap-2"><TrendingUp size={20} className="text-primary"/> Trend Jualan</h3>
               <div className="h-72">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={salesData}>
+                  <BarChart data={chartData}>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.1} />
                     <XAxis dataKey="date" stroke="#94a3b8" axisLine={false} tickLine={false} fontWeight={600} />
                     <YAxis stroke="#94a3b8" axisLine={false} tickLine={false} fontWeight={600} />
@@ -196,7 +184,9 @@ export const SellerView: React.FC = () => {
 
         {activeTab === 'orders' && (
           <div className="grid gap-4 animate-slide-up">
-            {orders.sort((a,b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).map(order => (
+            {orders.length === 0 ? (
+                <div className="text-center py-10 text-slate-400">Tiada pesanan lagi</div>
+            ) : orders.sort((a,b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).map(order => (
               <div key={order.id} className="bg-white dark:bg-dark-surface p-6 rounded-[1.5rem] border border-slate-100 dark:border-white/5 hover:shadow-xl dark:hover:shadow-none transition-shadow flex flex-col md:flex-row gap-6 justify-between items-center group">
                 <div className="flex-1 w-full">
                   <div className="flex items-center gap-3 mb-2">
@@ -221,9 +211,12 @@ export const SellerView: React.FC = () => {
                        <button onClick={() => updateOrderStatus(order.id, 'completed')} className="p-3 rounded-xl bg-green-500 text-white hover:bg-green-600 shadow-lg shadow-green-500/30 transition-all hover:scale-105 active:scale-95"><Check size={20} strokeWidth={3}/></button>
                      </div>
                    ) : (
-                     <span className={`px-4 py-2 rounded-xl text-sm font-black uppercase tracking-wide ${order.status === 'completed' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'}`}>
-                       {order.status}
-                     </span>
+                     <div className="flex items-center gap-3">
+                         <span className={`px-4 py-2 rounded-xl text-sm font-black uppercase tracking-wide ${order.status === 'completed' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'}`}>
+                           {order.status}
+                         </span>
+                         <button onClick={() => handleDeleteOrder(order.id)} className="p-2 text-slate-400 hover:text-red-500 transition-colors" title="Padam Rekod"><Trash2 size={18}/></button>
+                     </div>
                    )}
                 </div>
               </div>
@@ -232,41 +225,52 @@ export const SellerView: React.FC = () => {
         )}
 
         {activeTab === 'menu' && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 animate-fade-in">
-            {menuItems.map(item => (
-              <div key={item.id} className={`bg-white dark:bg-dark-surface rounded-[2rem] p-4 border transition-all duration-300 group relative shadow-sm hover:shadow-xl dark:hover:shadow-none ${!item.available ? 'opacity-70 border-dashed border-slate-300' : 'border-slate-100 dark:border-white/5 hover:border-primary/50'}`}>
-                <div className="h-40 bg-cream dark:bg-white/5 rounded-[1.5rem] mb-4 flex items-center justify-center overflow-hidden relative">
-                   {(item.image.startsWith('http') || item.image.startsWith('data:')) ? (
-                      <img src={item.image} alt={item.name} className={`h-32 object-contain transition-transform drop-shadow-lg ${item.available ? 'group-hover:scale-110' : 'grayscale'}`} />
-                    ) : (
-                      <span className="text-6xl filter drop-shadow-md">{item.image}</span>
-                    )}
-                    
-                    {!item.available && (
-                        <div className="absolute inset-0 bg-black/10 flex items-center justify-center">
-                            <span className="bg-red-500 text-white text-xs font-bold px-3 py-1 rounded-full">HIDDEN</span>
-                        </div>
-                    )}
+          <>
+            {menuItems.length === 0 ? (
+                <div className="text-center py-20">
+                    <div className="text-4xl mb-4">🍽️</div>
+                    <h3 className="text-xl font-bold dark:text-white mb-4">Menu Kosong</h3>
+                    <p className="text-slate-500 mb-6">Database menu anda kosong.</p>
+                    <Button onClick={seedDatabase} icon={<RotateCcw size={18} />}>Muat Menu Default</Button>
                 </div>
-                <h3 className="font-bold dark:text-white truncate text-lg">{item.name}</h3>
-                <p className="text-sm text-slate-500 mb-4 font-medium">{item.category}</p>
-                <div className="flex justify-between items-center">
-                  <span className="font-black text-slate-900 dark:text-white text-lg">RM {item.price.toFixed(2)}</span>
-                  <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button 
-                        onClick={() => toggleAvailability(item)} 
-                        className={`p-2 rounded-lg transition-colors ${item.available ? 'bg-slate-100 dark:bg-white/10 text-slate-500' : 'bg-green-100 text-green-600'}`}
-                        title={item.available ? "Hide Menu" : "Show Menu"}
-                    >
-                        {item.available ? <Eye size={18}/> : <EyeOff size={18}/>}
-                    </button>
-                    <button onClick={() => setEditingItem(item)} className="p-2 bg-slate-100 dark:bg-white/10 rounded-lg text-slate-600 dark:text-slate-300 hover:text-primary dark:hover:text-primary transition-colors"><Pencil size={18}/></button>
-                    <button onClick={() => handleDeleteMenu(item.id)} className="p-2 bg-red-50 dark:bg-red-900/20 rounded-lg text-red-500 hover:bg-red-100 dark:hover:bg-red-900/40 transition-colors"><Trash2 size={18}/></button>
-                  </div>
+            ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 animate-fade-in">
+                {menuItems.map(item => (
+                <div key={item.id} className={`bg-white dark:bg-dark-surface rounded-[2rem] p-4 border transition-all duration-300 group relative shadow-sm hover:shadow-xl dark:hover:shadow-none ${!item.available ? 'opacity-70 border-dashed border-slate-300' : 'border-slate-100 dark:border-white/5 hover:border-primary/50'}`}>
+                    <div className="h-40 bg-cream dark:bg-white/5 rounded-[1.5rem] mb-4 flex items-center justify-center overflow-hidden relative">
+                    {(item.image && (item.image.startsWith('http') || item.image.startsWith('data:'))) ? (
+                        <img src={item.image} alt={item.name} className={`h-32 object-contain transition-transform drop-shadow-lg ${item.available ? 'group-hover:scale-110' : 'grayscale'}`} />
+                        ) : (
+                        <span className="text-6xl filter drop-shadow-md">{item.image || '🍽️'}</span>
+                        )}
+                        
+                        {!item.available && (
+                            <div className="absolute inset-0 bg-black/10 flex items-center justify-center">
+                                <span className="bg-red-500 text-white text-xs font-bold px-3 py-1 rounded-full">HIDDEN</span>
+                            </div>
+                        )}
+                    </div>
+                    <h3 className="font-bold dark:text-white truncate text-lg">{item.name}</h3>
+                    <p className="text-sm text-slate-500 mb-4 font-medium">{item.category}</p>
+                    <div className="flex justify-between items-center">
+                    <span className="font-black text-slate-900 dark:text-white text-lg">RM {item.price.toFixed(2)}</span>
+                    <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button 
+                            onClick={() => toggleAvailability(item)} 
+                            className={`p-2 rounded-lg transition-colors ${item.available ? 'bg-slate-100 dark:bg-white/10 text-slate-500' : 'bg-green-100 text-green-600'}`}
+                            title={item.available ? "Sembunyi" : "Papar"}
+                        >
+                            {item.available ? <Eye size={18}/> : <EyeOff size={18}/>}
+                        </button>
+                        <button onClick={() => setEditingItem(item)} className="p-2 bg-slate-100 dark:bg-white/10 rounded-lg text-slate-600 dark:text-slate-300 hover:text-primary dark:hover:text-primary transition-colors"><Pencil size={18}/></button>
+                        <button onClick={() => handleDeleteMenu(item.id)} className="p-2 bg-red-50 dark:bg-red-900/20 rounded-lg text-red-500 hover:bg-red-100 dark:hover:bg-red-900/40 transition-colors"><Trash2 size={18}/></button>
+                    </div>
+                    </div>
                 </div>
-              </div>
-            ))}
-          </div>
+                ))}
+            </div>
+            )}
+          </>
         )}
 
         {/* Edit Modal */}
@@ -326,9 +330,14 @@ export const SellerView: React.FC = () => {
                       
                       {/* Drag & Drop Zone */}
                       <div 
-                        onDragOver={handleDragOver}
-                        onDragLeave={handleDragLeave}
-                        onDrop={handleDrop}
+                        onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+                        onDragLeave={(e) => { e.preventDefault(); setIsDragging(false); }}
+                        onDrop={(e) => {
+                            e.preventDefault();
+                            setIsDragging(false);
+                            const file = e.dataTransfer.files?.[0];
+                            if (file) processFile(file);
+                        }}
                         className={`relative group h-32 rounded-2xl border-2 border-dashed transition-all duration-300 flex flex-col items-center justify-center cursor-pointer ${
                           isDragging 
                             ? 'border-primary bg-primary/5 scale-[1.02]' 
@@ -351,13 +360,10 @@ export const SellerView: React.FC = () => {
                           <Eye size={12} /> AR Customer View
                        </div>
                        
-                       {/* Grid Background */}
                        <div className="absolute inset-0 opacity-20" style={{backgroundImage: 'linear-gradient(rgba(255,255,255,0.05) 2px, transparent 2px), linear-gradient(90deg, rgba(255,255,255,0.05) 2px, transparent 2px)', backgroundSize: '40px 40px'}}></div>
                        
-                       {/* Spotlight */}
                        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-full bg-gradient-to-b from-primary/20 to-transparent opacity-50 blur-2xl pointer-events-none"></div>
 
-                       {/* The 3D Item */}
                        <div className="absolute inset-0 flex flex-col items-center justify-center">
                           <div className="relative animate-float transition-all duration-500">
                              {(editingItem.image && (editingItem.image.startsWith('http') || editingItem.image.startsWith('data:'))) ? (
@@ -366,7 +372,6 @@ export const SellerView: React.FC = () => {
                                 <span className="text-8xl filter drop-shadow-2xl animate-wiggle-slow">{editingItem.image || '❓'}</span>
                              )}
                              
-                             {/* Dynamic Shadow */}
                              <div className="absolute -bottom-8 left-1/2 -translate-x-1/2 w-32 h-8 bg-black/40 blur-xl rounded-[100%] animate-shadow-pulse"></div>
                           </div>
                        </div>

@@ -4,7 +4,7 @@ import { useApp } from '../context/AppContext';
 import { Button } from '../components/ui/Button';
 import { CartDrawer } from '../components/CartDrawer';
 import { AROverlay } from '../components/AROverlay';
-import { ShoppingCart, Search, Menu, Sun, Moon, LogOut, ClipboardList, CheckCircle, Download, Send, Star, Flame, ChevronRight } from 'lucide-react';
+import { ShoppingCart, Search, Menu, Sun, Moon, LogOut, ClipboardList, CheckCircle, Download, Send, Star, Flame, ChevronRight, ImageOff } from 'lucide-react';
 import { MenuItem, Order } from '../types';
 import { jsPDF } from "jspdf";
 import { ADMIN_PHONE } from '../constants';
@@ -21,6 +21,7 @@ export const CustomerView: React.FC = () => {
   const [isOrdering, setIsOrdering] = useState(false);
   const [successOrder, setSuccessOrder] = useState<Order | null>(null);
   const [greeting, setGreeting] = useState('Welcome');
+  const [imageErrors, setImageErrors] = useState<Record<string, boolean>>({});
 
   // Time based greeting
   useEffect(() => {
@@ -43,6 +44,7 @@ export const CustomerView: React.FC = () => {
 
   const handleCheckout = async () => {
     setIsOrdering(true);
+    // Simulate slight delay for better UX feel
     await new Promise(resolve => setTimeout(resolve, 800));
     const order = await placeOrder();
     setIsOrdering(false);
@@ -52,8 +54,12 @@ export const CustomerView: React.FC = () => {
       setSuccessOrder(order);
       toast.success('Pesanan Berjaya!');
     } else {
-      toast.error('Gagal membuat pesanan.');
+      toast.error('Gagal membuat pesanan. Sila cuba lagi.');
     }
+  };
+
+  const handleImageError = (id: string) => {
+    setImageErrors(prev => ({ ...prev, [id]: true }));
   };
 
   const generateReceipt = () => {
@@ -62,6 +68,7 @@ export const CustomerView: React.FC = () => {
     const order = successOrder;
     let y = 20;
 
+    // Header
     doc.setFontSize(20);
     doc.setTextColor(255, 84, 48); // Foodie Orange
     doc.text("FoodieQ By CheGu Faira", 105, y, { align: "center" });
@@ -71,24 +78,27 @@ export const CustomerView: React.FC = () => {
     doc.text("Resit Rasmi", 105, y, { align: "center" });
     doc.text(`ID: ${order.id}`, 105, y + 5, { align: "center" });
     
-    // Receipt Content
+    // Info
     y += 20;
     doc.text(`Tarikh: ${new Date(order.createdAt).toLocaleString()}`, 20, y);
     y += 10;
     doc.text(`Pelanggan: ${order.customerName}`, 20, y);
     doc.text(`No. Tel: ${order.customerPhone}`, 20, y + 5);
     
+    // Line
     y += 15;
     doc.setLineWidth(0.5);
     doc.line(20, y, 190, y);
     y += 10;
 
+    // Items
     order.items.forEach(item => {
       doc.text(`${item.name} (x${item.quantity})`, 20, y);
       doc.text(`RM ${(item.price * item.quantity).toFixed(2)}`, 190, y, { align: "right" });
       y += 7;
     });
 
+    // Total
     y += 5;
     doc.line(20, y, 190, y);
     y += 10;
@@ -98,6 +108,12 @@ export const CustomerView: React.FC = () => {
     doc.setFontSize(14);
     doc.setTextColor(255, 84, 48);
     doc.text(`RM ${order.total.toFixed(2)}`, 190, y, { align: "right" });
+
+    // Footer
+    y += 20;
+    doc.setFontSize(8);
+    doc.setTextColor(100);
+    doc.text("Terima kasih kerana memilih FoodieQ!", 105, y, { align: "center" });
 
     doc.save(`Resit-${order.id}.pdf`);
   };
@@ -113,7 +129,7 @@ export const CustomerView: React.FC = () => {
     <div className="min-h-screen bg-cream dark:bg-dark-bg pb-24 md:pb-0 transition-colors duration-500">
       
       {/* Modern Glass Header */}
-      <header className="sticky top-0 z-40 glass border-b-0 shadow-sm">
+      <header className="sticky top-0 z-40 glass border-b-0 shadow-sm transition-all duration-300">
         <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
              <div className="w-10 h-10 bg-gradient-to-tr from-primary to-orange-600 rounded-xl flex items-center justify-center text-white font-black shadow-lg shadow-orange-500/30 transform rotate-3">
@@ -130,7 +146,6 @@ export const CustomerView: React.FC = () => {
               {theme === 'dark' ? <Sun size={20} strokeWidth={2.5} /> : <Moon size={20} strokeWidth={2.5} />}
             </button>
             
-            {/* Explicit Logout Button */}
             <button 
               onClick={logout} 
               className="flex items-center gap-2 px-3 py-2 rounded-xl bg-red-50 dark:bg-red-900/10 text-red-500 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors font-bold text-xs sm:text-sm"
@@ -154,7 +169,6 @@ export const CustomerView: React.FC = () => {
         <div className="relative w-full rounded-[2rem] overflow-hidden mb-8 shadow-2xl shadow-orange-500/20 group">
           <div className="absolute inset-0 bg-gradient-to-r from-[#FF5430] via-[#FF7D54] to-[#FF4757] animate-pulse-slow"></div>
           
-          {/* Decorative Circles */}
           <div className="absolute top-[-50%] left-[-20%] w-full h-full border-[20px] border-white/10 rounded-full"></div>
           <div className="absolute bottom-[-50%] right-[-20%] w-full h-full border-[40px] border-white/10 rounded-full"></div>
 
@@ -172,7 +186,6 @@ export const CustomerView: React.FC = () => {
               </p>
             </div>
             
-            {/* 3D Floating Food Illustration */}
             <div className="absolute right-[-20px] bottom-[-30px] md:right-10 md:bottom-[-40px] transform md:rotate-[-10deg] transition-transform duration-700 group-hover:scale-105 group-hover:rotate-0 select-none pointer-events-none">
                <span className="text-[160px] md:text-[220px] drop-shadow-2xl filter brightness-110">🍔</span>
                <span className="absolute top-0 right-[-40px] text-[80px] animate-bounce delay-700 drop-shadow-lg">🍟</span>
@@ -220,15 +233,23 @@ export const CustomerView: React.FC = () => {
               className="group bg-white dark:bg-dark-surface rounded-[2rem] p-4 hover:shadow-[0_20px_50px_-12px_rgba(254,84,48,0.15)] dark:hover:shadow-[0_20px_50px_-12px_rgba(0,0,0,0.5)] transition-all duration-300 cursor-pointer border border-slate-100 dark:border-white/5 hover:border-primary/50 dark:hover:border-primary/50 relative flex flex-col"
               onClick={() => setArItem(item)}
             >
-              {/* Image Section - Pops out on hover */}
+              {/* Image Section */}
               <div className="h-48 w-full flex items-center justify-center mb-4 relative bg-cream dark:bg-[#1A1513] rounded-[1.5rem] overflow-hidden">
                 <div className="absolute inset-0 bg-primary/5 opacity-0 group-hover:opacity-100 transition-opacity"></div>
                 
                 <div className="relative z-10 transition-transform duration-500 transform group-hover:scale-110 group-hover:-translate-y-2">
-                   {(item.image.startsWith('http') || item.image.startsWith('data:')) ? (
-                      <img src={item.image} alt={item.name} className="h-40 w-full object-contain drop-shadow-2xl" />
+                   {/* Logic: Show Image if valid and not errored. Else show Emoji. */}
+                   {(!imageErrors[item.id] && item.image && (item.image.startsWith('http') || item.image.startsWith('data:'))) ? (
+                      <img 
+                        src={item.image} 
+                        alt={item.name} 
+                        className="h-40 w-full object-contain drop-shadow-2xl"
+                        onError={() => handleImageError(item.id)}
+                      />
                     ) : (
-                      <span className="text-[100px] drop-shadow-xl filter brightness-110">{item.image}</span>
+                      <span className="text-[100px] drop-shadow-xl filter brightness-110">
+                        {(item.image && !item.image.startsWith('http') && !item.image.startsWith('data:')) ? item.image : '🍽️'}
+                      </span>
                     )}
                 </div>
 
@@ -276,10 +297,10 @@ export const CustomerView: React.FC = () => {
           ))}
         </div>
         
-        <div className="h-28"></div> {/* Spacer for FAB */}
+        <div className="h-28"></div>
       </main>
 
-      {/* Floating Action Button (Cart) - Appetizing Style */}
+      {/* Floating Action Button (Cart) */}
       <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 w-full max-w-sm px-4">
         <button 
           onClick={() => setIsCartOpen(true)}

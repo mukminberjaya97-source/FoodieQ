@@ -17,6 +17,7 @@ interface AppContextType {
   orders: Order[];
   setOrders: React.Dispatch<React.SetStateAction<Order[]>>;
   updateOrderStatus: (id: string, status: 'completed' | 'cancelled') => Promise<void>;
+  deleteOrder: (id: string) => Promise<void>;
   cart: CartItem[];
   addToCart: (item: MenuItem) => void;
   removeFromCart: (id: string) => void;
@@ -28,19 +29,18 @@ interface AppContextType {
   currentView: ViewState;
   setCurrentView: (view: ViewState) => void;
   isLoading: boolean;
+  seedDatabase: () => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  // Initialize State from Storage (Persistence)
   const [user, setUser] = useState<User | null>(Storage.getUser());
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
   
-  // Determine initial view based on stored user
   const [currentView, setCurrentView] = useState<ViewState>(() => {
     const storedUser = Storage.getUser();
     if (storedUser) {
@@ -51,7 +51,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   
   const [isLoading, setIsLoading] = useState(true);
 
-  // Load Theme
   useEffect(() => {
     const storedTheme = Storage.getTheme();
     setTheme(storedTheme);
@@ -60,39 +59,30 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, []);
 
-  // --------------------------------------------------------------
-  // SUPABASE REAL-TIME DATA FETCHING & SUBSCRIPTION
-  // --------------------------------------------------------------
+  // Helper to map Order DB Row to App Type
+  const mapOrderRow = (r: any): Order => ({
+    id: r.id,
+    customerName: r.customer_name,
+    customerPhone: r.customer_phone,
+    items: typeof r.items === 'string' ? JSON.parse(r.items) : r.items,
+    subtotal: r.subtotal,
+    serviceFee: r.service_fee,
+    total: r.total,
+    status: r.status,
+    createdAt: r.created_at
+  });
+
   useEffect(() => {
     const fetchInitialData = async () => {
       setIsLoading(true);
       
-      // 1. Fetch Initial Menu
-      const { data: menuData, error: menuError } = await supabase.from('menu_items').select('*');
-      if (menuError) {
-        console.error('Error fetching menu:', menuError);
-        setMenuItems(DEFAULT_MENU_ITEMS);
-      } else {
-        setMenuItems(menuData && menuData.length > 0 ? (menuData as MenuItem[]) : DEFAULT_MENU_ITEMS);
-      }
+      const { data: menuData } = await supabase.from('menu_items').select('*');
+      // DO NOT fallback to default if empty, let the admin seed it.
+      if (menuData) setMenuItems(menuData as MenuItem[]);
 
-      // 2. Fetch Initial Orders (Map snake_case DB to camelCase TS)
-      const { data: orderData, error: orderError } = await supabase.from('orders').select('*');
-      if (orderError) {
-        console.error('Error fetching orders:', orderError);
-      } else if (orderData) {
-        const mappedOrders: Order[] = orderData.map((o: any) => ({
-          id: o.id,
-          customerName: o.customer_name,
-          customerPhone: o.customer_phone,
-          items: typeof o.items === 'string' ? JSON.parse(o.items) : o.items,
-          subtotal: o.subtotal,
-          serviceFee: o.service_fee,
-          total: o.total,
-          status: o.status,
-          createdAt: o.created_at
-        }));
-        setOrders(mappedOrders);
+      const { data: orderData } = await supabase.from('orders').select('*');
+      if (orderData) {
+        setOrders(orderData.map(mapOrderRow));
       }
       
       setIsLoading(false);
@@ -100,27 +90,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     fetchInitialData();
 
-    // ------------------------------------------------------------
-    // REAL-TIME SUBSCRIPTIONS
-    // ------------------------------------------------------------
-    
-    // Helper to map Order DB Row to App Type
-    const mapOrderRow = (r: any): Order => ({
-      id: r.id,
-      customerName: r.customer_name,
-      customerPhone: r.customer_phone,
-      items: typeof r.items === 'string' ? JSON.parse(r.items) : r.items,
-      subtotal: r.subtotal,
-      serviceFee: r.service_fee,
-      total: r.total,
-      status: r.status,
-      createdAt: r.created_at
-    });
-
     const subscription = supabase.channel('foodieq-realtime')
-      // Listen to MENU changes
       .on('postgres_changes', { event: '*', schema: 'public', table: 'menu_items' }, (payload) => {
-        console.log('Real-time Menu Update:', payload);
         if (payload.eventType === 'INSERT') {
           setMenuItems(prev => [...prev, payload.new as MenuItem]);
         } else if (payload.eventType === 'UPDATE') {
@@ -129,42 +100,27 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           setMenuItems(prev => prev.filter(item => item.id !== payload.old.id));
         }
       })
-      // Listen to ORDER changes
       .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, (payload) => {
-        console.log('Real-time Order Update:', payload);
-        
         if (payload.eventType === 'INSERT') {
-          const newOrder = mapOrderRow(payload.new);
-          setOrders(prev => [newOrder, ...prev]);
+          setOrders(prev => [mapOrderRow(payload.new), ...prev]);
           toast('Pesanan Baru Masuk! 🔔', { icon: '🍔' });
         } 
         else if (payload.eventType === 'UPDATE') {
-          const updatedOrder = mapOrderRow(payload.new);
-          setOrders(prev => prev.map(o => o.id === updatedOrder.id ? updatedOrder : o));
-          // Notify customer if status changes
-          if (updatedOrder.status === 'completed') toast.success(`Order ${updatedOrder.id} siap!`);
+          setOrders(prev => prev.map(o => o.id === payload.new.id ? mapOrderRow(payload.new) : o));
+          if (payload.new.status === 'completed') toast.success(`Order ${payload.new.id} siap!`);
         }
         else if (payload.eventType === 'DELETE') {
           setOrders(prev => prev.filter(o => o.id !== payload.old.id));
         }
       })
-      .subscribe((status) => {
-        if (status === 'SUBSCRIBED') {
-          console.log('Supabase Real-time Connected');
-        }
-      });
+      .subscribe();
 
     return () => {
       supabase.removeChannel(subscription);
     };
   }, []);
 
-  // --------------------------------------------------------------
-  // DATA OPERATIONS
-  // --------------------------------------------------------------
-
   const saveMenuItem = async (item: MenuItem) => {
-    // Optimistic Update
     setMenuItems(prev => {
       const exists = prev.find(i => i.id === item.id);
       if (exists) return prev.map(i => i.id === item.id ? item : i);
@@ -174,92 +130,78 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const { error } = await supabase.from('menu_items').upsert(item);
     if (error) {
       console.error('Error saving menu item:', error);
-      toast.error('Gagal simpan menu ke database');
-      // Revert optimism if needed (complex, omitted for brevity)
+      toast.error('Gagal simpan ke database');
     }
   };
 
   const deleteMenuItemItem = async (id: string) => {
-    // Optimistic Update
     setMenuItems(prev => prev.filter(i => i.id !== id));
-
     const { error } = await supabase.from('menu_items').delete().eq('id', id);
-    if (error) {
-       console.error('Error deleting item:', error);
-       toast.error('Gagal padam menu');
-    }
+    if (error) toast.error('Gagal padam menu');
   };
 
   const updateOrderStatus = async (id: string, status: 'completed' | 'cancelled') => {
-    // Optimistic Update
     setOrders(prev => prev.map(o => o.id === id ? { ...o, status } : o));
+    await supabase.from('orders').update({ status }).eq('id', id);
+  };
 
-    const { error } = await supabase.from('orders').update({ status }).eq('id', id);
-    if (error) {
-      toast.error('Gagal kemaskini status');
-    } else {
-      toast.success(`Order marked as ${status}`);
-    }
+  const deleteOrder = async (id: string) => {
+    setOrders(prev => prev.filter(o => o.id !== id));
+    await supabase.from('orders').delete().eq('id', id);
+    toast.success('Rekod pesanan dipadam');
+  };
+
+  const seedDatabase = async () => {
+    const { error } = await supabase.from('menu_items').insert(DEFAULT_MENU_ITEMS);
+    if (error) toast.error('Gagal memuatkan default menu: ' + error.message);
+    else toast.success('Default menu dimuatkan!');
   };
 
   const toggleTheme = () => {
     const newTheme = theme === 'light' ? 'dark' : 'light';
     setTheme(newTheme);
     Storage.saveTheme(newTheme);
-    if (newTheme === 'dark') {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-    }
+    if (newTheme === 'dark') document.documentElement.classList.add('dark');
+    else document.documentElement.classList.remove('dark');
   };
 
   const login = (userData: User) => {
     setUser(userData);
-    Storage.saveUser(userData); // Persist User
+    Storage.saveUser(userData);
     setCurrentView(userData.role === 'admin' ? 'seller' : 'customer');
     toast.success(`Welcome back, ${userData.name}!`);
   };
 
   const logout = () => {
     setUser(null);
-    Storage.saveUser(null); // Clear Persistent User
+    Storage.saveUser(null);
     setCurrentView('login');
     setCart([]);
     toast('Logged out successfully', { icon: '👋' });
   };
 
   const addToCart = (item: MenuItem) => {
-    if (!item.available) {
-      toast.error('This item is currently unavailable');
-      return;
-    }
-
     setCart(prev => {
       const existing = prev.find(i => i.id === item.id);
       if (existing) {
-        toast.success(`Increased quantity of ${item.name}`);
+        toast.success(`Updated ${item.name}`);
         return prev.map(i => i.id === item.id ? { ...i, quantity: i.quantity + 1 } : i);
       }
-      toast.success(`Added ${item.name} to cart`);
+      toast.success(`Added ${item.name}`);
       return [...prev, { ...item, quantity: 1 }];
     });
   };
 
-  const removeFromCart = (id: string) => {
-    setCart(prev => prev.filter(i => i.id !== id));
-  };
-
+  const removeFromCart = (id: string) => setCart(prev => prev.filter(i => i.id !== id));
+  
   const updateCartQuantity = (id: string, delta: number) => {
-    setCart(prev => {
-      return prev.map(item => {
-        if (item.id === id) {
-          const newQty = item.quantity + delta;
-          if (newQty <= 0) return null;
-          return { ...item, quantity: newQty };
-        }
-        return item;
-      }).filter(Boolean) as CartItem[];
-    });
+    setCart(prev => prev.map(item => {
+      if (item.id === id) {
+        const newQty = item.quantity + delta;
+        return newQty > 0 ? { ...item, quantity: newQty } : null;
+      }
+      return item;
+    }).filter(Boolean) as CartItem[]);
   };
 
   const clearCart = () => setCart([]);
@@ -271,7 +213,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const total = subtotal + SERVICE_FEE;
 
     const newOrder: Order = {
-      id: `ORD-${Date.now()}-${Math.random().toString(36).substr(2, 5).toUpperCase()}`,
+      id: `ORD-${Date.now()}`,
       customerName: user.name,
       customerPhone: user.phone || 'N/A',
       items: [...cart],
@@ -282,7 +224,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       createdAt: new Date().toISOString()
     };
 
-    // 1. Save to Supabase (MAP TS camelCase keys to DB snake_case columns)
     const dbOrder = {
       id: newOrder.id,
       customer_name: newOrder.customerName,
@@ -295,15 +236,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       created_at: newOrder.createdAt
     };
 
+    // 1. Save to Database
     const { error } = await supabase.from('orders').insert(dbOrder);
     
     if (error) {
       console.error('Supabase Error:', error);
-      toast.error(`Gagal: ${error.message}`);
+      toast.error(`Ralat Database: ${error.message}`);
       return null;
     }
 
-    // 2. Google Sheet Integration
+    // 2. Third Party Integrations (Fire & Forget)
+    // Wrap in try-catch blocks individually so one failure doesn't stop the flow
+    
+    // Google Sheets
     if (GOOGLE_SHEET_SCRIPT_URL && GOOGLE_SHEET_SCRIPT_URL.startsWith('https')) {
       try {
         const params = new URLSearchParams();
@@ -320,36 +265,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           body: params,
           mode: 'no-cors',
           headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
-        }).catch(err => console.error('Google Sheet Sync Error:', err));
-      } catch (e) { console.error(e); }
+        }).catch(e => console.warn('Google Sheet Sync Failed (Network)', e));
+      } catch (e) { console.warn('Google Sheet Config Error', e); }
     }
 
-    // 3. Telegram Bot Integration
+    // Telegram
     if (TELEGRAM_BOT_TOKEN && TELEGRAM_CHAT_ID) {
       try {
-        const itemsList = newOrder.items
-          .map(item => `- ${item.name} (x${item.quantity})`)
-          .join('\n');
-          
-        const text = `🚨 *PESANAN BARU DITERIMA*\n\n` +
-          `🆔 Order ID: \`${newOrder.id}\`\n` +
-          `👤 Nama: ${newOrder.customerName}\n` +
-          `📱 Tel: ${newOrder.customerPhone}\n\n` +
-          `🛒 *Item Pesanan:*\n${itemsList}\n\n` +
-          `💰 *Jumlah: RM ${newOrder.total.toFixed(2)}*\n` +
-          `📅 Tarikh: ${new Date(newOrder.createdAt).toLocaleString('ms-MY')}`;
+        const itemsList = newOrder.items.map(item => `- ${item.name} (x${item.quantity})`).join('\n');
+        const text = `🚨 *PESANAN BARU*\n🆔 \`${newOrder.id}\`\n👤 ${newOrder.customerName}\n📞 ${newOrder.customerPhone}\n\n🛒 *Item:*\n${itemsList}\n\n💰 *Total: RM ${newOrder.total.toFixed(2)}*`;
 
-        const telegramUrl = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`;
-        fetch(telegramUrl, {
+        fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            chat_id: TELEGRAM_CHAT_ID,
-            text: text,
-            parse_mode: 'Markdown'
-          })
-        }).catch(err => console.error('Telegram Error:', err));
-      } catch (e) { console.error(e); }
+          body: JSON.stringify({ chat_id: TELEGRAM_CHAT_ID, text, parse_mode: 'Markdown' })
+        }).catch(e => console.warn('Telegram Sync Failed', e));
+      } catch (e) { console.warn('Telegram Config Error', e); }
     }
 
     clearCart();
@@ -360,17 +291,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     <AppContext.Provider value={{
       user, login, logout,
       menuItems, setMenuItems, saveMenuItem, deleteMenuItemItem,
-      orders, setOrders, updateOrderStatus,
+      orders, setOrders, updateOrderStatus, deleteOrder,
       cart, addToCart, removeFromCart, updateCartQuantity, clearCart, placeOrder,
       theme, toggleTheme,
       currentView, setCurrentView,
-      isLoading
+      isLoading, seedDatabase
     }}>
       <Toaster position="top-right" toastOptions={{
-        style: {
-          background: theme === 'dark' ? '#1e293b' : '#fff',
-          color: theme === 'dark' ? '#fff' : '#0f172a',
-        }
+        style: { background: theme === 'dark' ? '#1e293b' : '#fff', color: theme === 'dark' ? '#fff' : '#0f172a' }
       }} />
       {children}
     </AppContext.Provider>
@@ -379,8 +307,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
 export const useApp = () => {
   const context = useContext(AppContext);
-  if (context === undefined) {
-    throw new Error('useApp must be used within an AppProvider');
-  }
+  if (context === undefined) throw new Error('useApp must be used within an AppProvider');
   return context;
 };
