@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { MenuItem, Order, CartItem, User, ViewState } from '../types';
 import { Storage } from '../utils/storage';
-import { DEFAULT_MENU_ITEMS, SERVICE_FEE, GOOGLE_SHEET_SCRIPT_URL } from '../constants';
+import { DEFAULT_MENU_ITEMS, SERVICE_FEE, GOOGLE_SHEET_SCRIPT_URL, TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID } from '../constants';
 import toast, { Toaster } from 'react-hot-toast';
 
 interface AppContextType {
@@ -134,11 +134,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       createdAt: new Date().toISOString()
     };
 
-    // Google Sheet Integration
+    // 1. Google Sheet Integration
     if (GOOGLE_SHEET_SCRIPT_URL && GOOGLE_SHEET_SCRIPT_URL.startsWith('https')) {
       try {
-        // Use URLSearchParams for application/x-www-form-urlencoded
-        // This ensures better compatibility with Google Apps Script's doPost(e) e.parameter
         const formData = new URLSearchParams();
         formData.append('order_id', newOrder.id);
         formData.append('date', new Date(newOrder.createdAt).toLocaleString('ms-MY', { 
@@ -152,26 +150,52 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         formData.append('total', newOrder.total.toFixed(2));
         formData.append('status', newOrder.status);
 
-        console.log('Sending order to Google Sheet...', Object.fromEntries(formData));
+        console.log('Sending order to Google Sheet...');
 
         fetch(GOOGLE_SHEET_SCRIPT_URL, {
           method: 'POST',
           body: formData,
           mode: 'no-cors',
-          headers: {
-            'Content-Type': 'application/x-www-form-urlencoded'
-          }
-        })
-        .then(() => console.log('Successfully sent to Google Sheet'))
-        .catch(err => console.error('Google Sheet Sync Error:', err));
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+        }).catch(err => console.error('Google Sheet Sync Error:', err));
       } catch (e) {
         console.error("Failed to sync to Google Sheet", e);
       }
     }
 
+    // 2. Telegram Bot Integration
+    if (TELEGRAM_BOT_TOKEN && TELEGRAM_CHAT_ID) {
+      try {
+        const itemsList = newOrder.items
+          .map(item => `- ${item.name} (x${item.quantity})`)
+          .join('\n');
+          
+        const text = `🚨 *PESANAN BARU DITERIMA*\n\n` +
+          `🆔 Order ID: \`${newOrder.id}\`\n` +
+          `👤 Nama: ${newOrder.customerName}\n` +
+          `📱 Tel: ${newOrder.customerPhone}\n\n` +
+          `🛒 *Item Pesanan:*\n${itemsList}\n\n` +
+          `💰 *Jumlah: RM ${newOrder.total.toFixed(2)}*\n` +
+          `📅 Tarikh: ${new Date(newOrder.createdAt).toLocaleString('ms-MY')}`;
+
+        const telegramUrl = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`;
+        
+        fetch(telegramUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            chat_id: TELEGRAM_CHAT_ID,
+            text: text,
+            parse_mode: 'Markdown'
+          })
+        }).catch(err => console.error('Telegram Error:', err));
+      } catch (e) {
+        console.error("Failed to send Telegram notification", e);
+      }
+    }
+
     setOrders(prev => [newOrder, ...prev]);
     clearCart();
-    // Intentionally not showing toast here to let the Success View handle it
     return newOrder;
   };
 

@@ -67,14 +67,16 @@ export const SellerView: React.FC = () => {
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      if (file.size > 5 * 1024 * 1024) {
-        toast.error('Image size must be less than 5MB');
+      // Limit to 350KB to safely store in LocalStorage (Quota ~5MB total)
+      if (file.size > 350 * 1024) {
+        toast.error('File terlalu besar! Sila guna gambar < 350KB untuk kelancaran aplikasi.');
         return;
       }
+      
       const reader = new FileReader();
       reader.onloadend = () => {
         setEditingItem(prev => prev ? ({ ...prev, image: reader.result as string }) : null);
-        toast.success('Image uploaded successfully');
+        toast.success('Gambar berjaya dimuat naik');
       };
       reader.readAsDataURL(file);
     }
@@ -280,8 +282,8 @@ export const SellerView: React.FC = () => {
                     </div>
                   </div>
 
-                  <p className="text-xs text-slate-400">
-                    Upload a transparent PNG for a realistic 3D effect in AR view.
+                  <p className="text-xs text-slate-500 dark:text-slate-400 italic">
+                    Info: Sila muat naik gambar &lt; 350KB (PNG Transparan) untuk mengelakkan aplikasi menjadi berat.
                   </p>
 
                   {(editingItem.image && (editingItem.image.startsWith('http') || editingItem.image.startsWith('data:'))) && (

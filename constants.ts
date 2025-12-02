@@ -23,3 +23,9 @@ export const ADMIN_PHONE = '601161042940';
 // PENTING: Masukkan URL Web App Google Apps Script anda di bawah ini
 // ------------------------------------------------------------------
 export const GOOGLE_SHEET_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzGxT66xXu_BTYmieu4gjXyVjEqYeSgZPxDwLNK_1l3WqcBjIVUxvxQD0SVZtZemDwL/exec";
+
+// ------------------------------------------------------------------
+// TELEGRAM CONFIGURATION
+// ------------------------------------------------------------------
+export const TELEGRAM_BOT_TOKEN = ""; // Contoh: 7033766890:AAH...
+export const TELEGRAM_CHAT_ID = "";   // Contoh: 123456789
