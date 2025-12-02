@@ -32,12 +32,22 @@ interface AppContextType {
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<User | null>(null);
+  // Initialize State from Storage (Persistence)
+  const [user, setUser] = useState<User | null>(Storage.getUser());
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
-  const [currentView, setCurrentView] = useState<ViewState>('login');
+  
+  // Determine initial view based on stored user
+  const [currentView, setCurrentView] = useState<ViewState>(() => {
+    const storedUser = Storage.getUser();
+    if (storedUser) {
+      return storedUser.role === 'admin' ? 'seller' : 'customer';
+    }
+    return 'login';
+  });
+  
   const [isLoading, setIsLoading] = useState(true);
 
   // Load Theme
@@ -190,12 +200,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const login = (userData: User) => {
     setUser(userData);
+    Storage.saveUser(userData); // Persist User
     setCurrentView(userData.role === 'admin' ? 'seller' : 'customer');
     toast.success(`Welcome back, ${userData.name}!`);
   };
 
   const logout = () => {
     setUser(null);
+    Storage.saveUser(null); // Clear Persistent User
     setCurrentView('login');
     setCart([]);
     toast('Logged out successfully', { icon: '👋' });

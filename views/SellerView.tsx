@@ -124,7 +124,7 @@ export const SellerView: React.FC = () => {
             {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />} <span className="hidden lg:inline">Tema</span>
           </button>
           <button onClick={logout} className="w-full flex items-center justify-center lg:justify-start gap-3 px-4 py-3 rounded-xl text-red-500 hover:bg-red-50 dark:hover:bg-red-900/10 font-bold transition-colors">
-            <LogOut size={20} /> <span className="hidden lg:inline">Keluar</span>
+            <LogOut size={20} /> <span className="hidden lg:inline">Log Keluar</span>
           </button>
         </div>
       </aside>

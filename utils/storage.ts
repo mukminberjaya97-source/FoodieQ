@@ -1,10 +1,11 @@
-import { MenuItem, Order } from '../types';
+import { MenuItem, Order, User } from '../types';
 import { DEFAULT_MENU_ITEMS } from '../constants';
 
 const KEYS = {
   MENU: 'foodieq_menu',
   ORDERS: 'foodieq_orders',
-  THEME: 'foodieq_theme'
+  THEME: 'foodieq_theme',
+  USER: 'foodieq_user'
 };
 
 export const Storage = {
@@ -34,5 +35,19 @@ export const Storage = {
 
   saveTheme: (theme: 'light' | 'dark') => {
     localStorage.setItem(KEYS.THEME, theme);
+  },
+
+  getUser: (): User | null => {
+    const stored = localStorage.getItem(KEYS.USER);
+    if (!stored) return null;
+    return JSON.parse(stored);
+  },
+
+  saveUser: (user: User | null) => {
+    if (user) {
+      localStorage.setItem(KEYS.USER, JSON.stringify(user));
+    } else {
+      localStorage.removeItem(KEYS.USER);
+    }
   }
 };
