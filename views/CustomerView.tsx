@@ -129,6 +129,17 @@ export const CustomerView: React.FC = () => {
             <button onClick={toggleTheme} className="p-2.5 rounded-full hover:bg-orange-100 dark:hover:bg-white/10 text-slate-600 dark:text-secondary transition-colors">
               {theme === 'dark' ? <Sun size={20} strokeWidth={2.5} /> : <Moon size={20} strokeWidth={2.5} />}
             </button>
+            
+            {/* Explicit Logout Button */}
+            <button 
+              onClick={logout} 
+              className="flex items-center gap-2 px-3 py-2 rounded-xl bg-red-50 dark:bg-red-900/10 text-red-500 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors font-bold text-xs sm:text-sm"
+              title="Log Keluar"
+            >
+              <LogOut size={18} strokeWidth={2.5} />
+              <span className="hidden sm:inline">Keluar</span>
+            </button>
+
             <button onClick={() => setIsSidebarOpen(true)} className="p-2.5 rounded-full hover:bg-orange-100 dark:hover:bg-white/10 lg:hidden">
               <Menu size={20} className="dark:text-white" strokeWidth={2.5} />
             </button>
@@ -272,23 +283,23 @@ export const CustomerView: React.FC = () => {
       <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 w-full max-w-sm px-4">
         <button 
           onClick={() => setIsCartOpen(true)}
-          className={`w-full glass bg-slate-900/95 dark:bg-primary/95 backdrop-blur-xl text-white p-2 pr-4 rounded-[1.5rem] flex items-center justify-between shadow-2xl shadow-slate-900/30 border border-white/10 transition-transform ${cartItemCount > 0 ? 'translate-y-0 opacity-100' : 'translate-y-20 opacity-0'} duration-500`}
+          className={`w-full glass bg-slate-900/95 dark:bg-primary/95 backdrop-blur-xl text-white p-2 pr-3 rounded-[1.5rem] flex items-center justify-between shadow-2xl shadow-slate-900/30 border border-white/10 transition-transform ${cartItemCount > 0 ? 'translate-y-0 opacity-100' : 'translate-y-20 opacity-0'} duration-500`}
         >
           <div className="flex items-center gap-4">
-             <div className="bg-white/20 w-12 h-12 rounded-full flex items-center justify-center relative">
-                <ShoppingCart size={20} />
-                <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 rounded-full text-[10px] flex items-center justify-center font-bold border-2 border-slate-900">
+             <div className="bg-white/20 w-14 h-14 rounded-full flex items-center justify-center relative shadow-inner">
+                <ShoppingCart size={24} className="text-white" />
+                <span className="absolute -top-1 -right-1 w-6 h-6 bg-red-500 rounded-full text-xs flex items-center justify-center font-black border-2 border-slate-900 shadow-md">
                   {cartItemCount}
                 </span>
              </div>
              <div className="text-left">
-                <p className="text-xs text-white/70 font-medium">Total (termasuk caj)</p>
-                <p className="font-bold text-lg leading-none">RM {cart.reduce((s,i) => s + (i.price * i.quantity), 2).toFixed(2)}</p>
+                <p className="text-[10px] text-white/70 font-medium uppercase tracking-wider">Jumlah</p>
+                <p className="font-black text-xl leading-none tracking-tight">RM {cart.reduce((s,i) => s + (i.price * i.quantity), 2).toFixed(2)}</p>
              </div>
           </div>
           
-          <div className="flex items-center gap-2 font-bold bg-white text-slate-900 px-4 py-2 rounded-xl text-sm hover:bg-orange-50 transition-colors">
-             Lihat Troli <ChevronRight size={16} strokeWidth={3} />
+          <div className="flex items-center gap-2 font-black bg-white text-primary px-5 py-3 rounded-xl text-sm shadow-lg hover:bg-orange-50 transition-colors transform hover:scale-105 active:scale-95">
+             Lihat Troli <ChevronRight size={18} strokeWidth={4} />
           </div>
         </button>
       </div>
@@ -336,8 +347,27 @@ export const CustomerView: React.FC = () => {
             </div>
             
             <h2 className="text-3xl font-black dark:text-white mb-2 tracking-tight">Terima Kasih!</h2>
-            <p className="text-slate-500 dark:text-slate-400 mb-8 font-medium">Pesanan anda sedang disediakan dengan penuh kasih sayang.</p>
+            <p className="text-slate-500 dark:text-slate-400 mb-6 font-medium">Pesanan anda sedang disediakan dengan penuh kasih sayang.</p>
             
+            {/* Visual Receipt Summary */}
+            <div className="bg-slate-50 dark:bg-white/5 rounded-xl p-4 mb-6 text-left max-h-48 overflow-y-auto border border-slate-100 dark:border-white/5">
+              <h4 className="font-bold text-sm mb-3 dark:text-white border-b border-slate-200 dark:border-white/10 pb-2 flex items-center gap-2">
+                <ClipboardList size={14} className="text-primary"/> Ringkasan Pesanan:
+              </h4>
+              <div className="space-y-2">
+                {successOrder.items.map((item, idx) => (
+                    <div key={idx} className="flex justify-between text-sm text-slate-600 dark:text-slate-300">
+                      <span><span className="font-bold text-slate-900 dark:text-white">{item.quantity}x</span> {item.name}</span>
+                      <span className="font-medium">RM {(item.price * item.quantity).toFixed(2)}</span>
+                    </div>
+                ))}
+              </div>
+              <div className="flex justify-between font-black mt-3 pt-3 border-t border-slate-200 dark:border-white/10 text-primary text-lg">
+                  <span>Total</span>
+                  <span>RM {successOrder.total.toFixed(2)}</span>
+              </div>
+            </div>
+
             <div className="space-y-3">
               <Button onClick={generateReceipt} className="w-full py-4 text-base rounded-2xl shadow-lg shadow-orange-500/20" icon={<Download size={20} />}>Muat Turun Resit</Button>
               <Button onClick={sendWhatsApp} variant="secondary" className="w-full py-4 text-base rounded-2xl bg-[#25D366]/10 text-[#25D366] hover:bg-[#25D366]/20 border border-[#25D366]/20 dark:bg-[#25D366]/5 dark:border-[#25D366]/30" icon={<Send size={20} />}>Hantar Pesanan WhatsApp</Button>

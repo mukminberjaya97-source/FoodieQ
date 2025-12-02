@@ -1,10 +1,11 @@
+
 import React from 'react';
 import { useApp } from '../context/AppContext';
 import { Button } from '../components/ui/Button';
-import { ArrowLeft, Clock, CheckCircle, XCircle } from 'lucide-react';
+import { ArrowLeft, Clock, CheckCircle, XCircle, LogOut } from 'lucide-react';
 
 export const MyOrdersView: React.FC = () => {
-  const { user, orders, setCurrentView } = useApp();
+  const { user, orders, setCurrentView, logout } = useApp();
   
   const myOrders = orders.filter(o => 
     o.customerName === user?.name && o.customerPhone === user?.phone
@@ -13,12 +14,21 @@ export const MyOrdersView: React.FC = () => {
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-dark-bg p-6 animate-fade-in">
       <div className="max-w-2xl mx-auto">
-        <button 
-          onClick={() => setCurrentView('customer')}
-          className="flex items-center gap-2 text-slate-500 hover:text-slate-800 dark:hover:text-white mb-6 font-semibold transition-colors"
-        >
-          <ArrowLeft size={20} /> Back to Menu
-        </button>
+        <div className="flex justify-between items-center mb-6">
+            <button 
+            onClick={() => setCurrentView('customer')}
+            className="flex items-center gap-2 text-slate-500 hover:text-slate-800 dark:hover:text-white font-semibold transition-colors"
+            >
+            <ArrowLeft size={20} /> Back to Menu
+            </button>
+            
+            <button 
+              onClick={logout}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-red-50 dark:bg-red-900/20 text-red-500 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors font-bold text-sm"
+            >
+              <LogOut size={18} /> Keluar
+            </button>
+        </div>
 
         <h1 className="text-3xl font-black mb-8 dark:text-white">My Orders</h1>
 
