@@ -1,0 +1,48 @@
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    /* Using the new 'cream' and 'dark-bg' colors defined in tailwind.config.js */
+    @apply font-sans antialiased bg-cream text-slate-900 dark:bg-dark-bg dark:text-dark-text;
+  }
+}
+
+@layer utilities {
+  .glass {
+    @apply bg-white/70 dark:bg-dark-surface/70 backdrop-blur-lg border border-white/20 dark:border-white/5 shadow-xl;
+  }
+  
+  .glass-card {
+    @apply bg-white/80 dark:bg-dark-surface/80 backdrop-blur-md border border-orange-100/50 dark:border-orange-900/20;
+  }
+
+  .text-gradient {
+    @apply bg-clip-text text-transparent bg-gradient-to-r from-primary to-orange-600;
+  }
+
+  .hide-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .hide-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+}
+
+/* Custom Scrollbar for non-hidden areas - warmer tones */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  @apply bg-orange-200 dark:bg-orange-900/40 rounded-full;
+}
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-primary dark:bg-primary;
+}
