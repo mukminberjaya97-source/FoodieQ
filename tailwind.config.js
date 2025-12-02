@@ -27,6 +27,7 @@ export default {
         cream: '#FFF8F3', // Warm Milky White
         'dark-bg': '#140F0D', // Dark Roast Coffee (Not pure black)
         'dark-surface': '#241B18', // Milk Chocolate Surface
+        'dark-text': '#F1F5F9', // Added missing text color for dark mode (Slate 100)
         
         // Semantic Colors
         success: '#10B981',

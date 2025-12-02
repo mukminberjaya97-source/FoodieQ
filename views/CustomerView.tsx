@@ -71,7 +71,34 @@ export const CustomerView: React.FC = () => {
     doc.text("Resit Rasmi", 105, y, { align: "center" });
     doc.text(`ID: ${order.id}`, 105, y + 5, { align: "center" });
     
-    // ... Simplified receipt logic ...
+    // Receipt Content
+    y += 20;
+    doc.text(`Tarikh: ${new Date(order.createdAt).toLocaleString()}`, 20, y);
+    y += 10;
+    doc.text(`Pelanggan: ${order.customerName}`, 20, y);
+    doc.text(`No. Tel: ${order.customerPhone}`, 20, y + 5);
+    
+    y += 15;
+    doc.setLineWidth(0.5);
+    doc.line(20, y, 190, y);
+    y += 10;
+
+    order.items.forEach(item => {
+      doc.text(`${item.name} (x${item.quantity})`, 20, y);
+      doc.text(`RM ${(item.price * item.quantity).toFixed(2)}`, 190, y, { align: "right" });
+      y += 7;
+    });
+
+    y += 5;
+    doc.line(20, y, 190, y);
+    y += 10;
+    
+    doc.setFontSize(12);
+    doc.text("Jumlah Besar:", 120, y);
+    doc.setFontSize(14);
+    doc.setTextColor(255, 84, 48);
+    doc.text(`RM ${order.total.toFixed(2)}`, 190, y, { align: "right" });
+
     doc.save(`Resit-${order.id}.pdf`);
   };
 
@@ -322,12 +349,3 @@ export const CustomerView: React.FC = () => {
     </div>
   );
 };
-
-// Helper for FAB
-function ChevronRight({ size, strokeWidth = 2 }: { size: number; strokeWidth?: number }) {
-  return (
-    <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round">
-      <path d="m9 18 6-6-6-6"/>
-    </svg>
-  );
-}
