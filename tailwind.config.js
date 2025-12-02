@@ -3,7 +3,12 @@
 export default {
   content: [
     "./index.html",
-    "./**/*.{js,ts,jsx,tsx}",
+    "./App.tsx",
+    "./index.tsx",
+    "./views/**/*.{js,ts,jsx,tsx}",
+    "./components/**/*.{js,ts,jsx,tsx}",
+    "./context/**/*.{js,ts,jsx,tsx}",
+    "./utils/**/*.{js,ts,jsx,tsx}",
   ],
   darkMode: 'class',
   theme: {
@@ -33,6 +38,8 @@ export default {
         'slide-up': 'slideUp 0.5s cubic-bezier(0.16, 1, 0.3, 1)',
         'scale-in': 'scaleIn 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
         'float': 'float 6s ease-in-out infinite',
+        'wiggle-slow': 'wiggle 3s ease-in-out infinite',
+        'shadow-pulse': 'shadowPulse 3s ease-in-out infinite',
         'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
         'blob': 'blob 7s infinite',
       },
@@ -52,6 +59,14 @@ export default {
         float: {
           '0%, 100%': { transform: 'translateY(0px)' },
           '50%': { transform: 'translateY(-15px)' },
+        },
+        wiggle: {
+          '0%, 100%': { transform: 'rotate(-3deg)' },
+          '50%': { transform: 'rotate(3deg)' },
+        },
+        shadowPulse: {
+          '0%, 100%': { transform: 'translate(-50%, 0) scale(1)', opacity: '0.4' },
+          '50%': { transform: 'translate(-50%, 0) scale(0.8)', opacity: '0.2' },
         },
         blob: {
           "0%": { transform: "translate(0px, 0px) scale(1)" },
