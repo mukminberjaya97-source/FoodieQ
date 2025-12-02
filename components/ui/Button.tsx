@@ -1,3 +1,4 @@
+
 import React from 'react';
 
 interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
@@ -15,13 +16,13 @@ export const Button: React.FC<ButtonProps> = ({
   disabled,
   ...props 
 }) => {
-  const baseStyles = "inline-flex items-center justify-center px-6 py-3 rounded-xl font-bold transition-all duration-300 transform active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed disabled:transform-none";
+  const baseStyles = "inline-flex items-center justify-center px-6 py-3.5 rounded-xl font-bold transition-all duration-300 transform active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed disabled:transform-none select-none";
   
   const variants = {
-    primary: "bg-gradient-to-br from-[#ff6b35] to-[#f5576c] text-white hover:shadow-lg hover:-translate-y-0.5 shadow-orange-500/30",
-    secondary: "bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-slate-100 hover:bg-slate-300 dark:hover:bg-slate-600",
-    danger: "bg-red-100 text-red-600 hover:bg-red-200 dark:bg-red-900/30 dark:text-red-400 border border-transparent hover:border-red-500/30",
-    ghost: "bg-transparent text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
+    primary: "bg-gradient-to-r from-[#FF5430] to-[#FF3D15] text-white hover:shadow-lg hover:shadow-orange-500/40 hover:-translate-y-0.5 border border-transparent",
+    secondary: "bg-orange-100 text-orange-700 dark:bg-slate-800 dark:text-slate-200 hover:bg-orange-200 dark:hover:bg-slate-700 border border-orange-200 dark:border-slate-700",
+    danger: "bg-red-50 text-red-600 hover:bg-red-100 dark:bg-red-900/20 dark:text-red-400 border border-red-200 dark:border-red-900/50",
+    ghost: "bg-transparent text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-white/5"
   };
 
   return (
@@ -37,7 +38,7 @@ export const Button: React.FC<ButtonProps> = ({
         </svg>
       ) : (
         <>
-          {icon && <span className="mr-2">{icon}</span>}
+          {icon && <span className="mr-2.5">{icon}</span>}
           {children}
         </>
       )}

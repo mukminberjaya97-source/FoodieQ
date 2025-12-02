@@ -12,30 +12,28 @@ export default {
         sans: ['Inter', 'Plus Jakarta Sans', 'system-ui', 'sans-serif'],
       },
       colors: {
-        // Foodie Palette
-        primary: '#FE5430', // Zest Orange - Main Action
-        secondary: '#FFB900', // Cheese Yellow - Highlights
-        accent: '#34D399', // Fresh Mint - Success/Freshness
+        // Foodie Palette - Revised for Maximum Appetite Appeal
+        primary: '#FF5430', // Vibrant Zest Orange
+        'primary-dark': '#E03E1C', // Deep Orange for Hover
+        secondary: '#FFC107', // Golden Cheese / Yolk
+        accent: '#10B981', // Fresh Basil Green
         
         // Backgrounds
-        cream: '#FFF9F2', // Warm Light BG
-        'dark-bg': '#120C0A', // Dark Roast BG
+        cream: '#FFF8F3', // Warm Milky White
+        'dark-bg': '#140F0D', // Dark Roast Coffee (Not pure black)
         'dark-surface': '#241B18', // Milk Chocolate Surface
         
-        // Text
-        'dark-text': '#FDF0E6',
-        
-        // Legacy support (optional mapping)
-        slate: {
-          50: '#FFF9F2', // Override slate-50 to cream
-          900: '#2D2420', // Override slate-900 to warm brown-black
-        }
+        // Semantic Colors
+        success: '#10B981',
+        danger: '#EF4444',
+        warning: '#F59E0B',
       },
       animation: {
-        'fade-in': 'fadeIn 0.5s ease-out',
-        'slide-up': 'slideUp 0.5s ease-out',
-        'scale-in': 'scaleIn 0.3s ease-out',
+        'fade-in': 'fadeIn 0.4s ease-out',
+        'slide-up': 'slideUp 0.5s cubic-bezier(0.16, 1, 0.3, 1)',
+        'scale-in': 'scaleIn 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
         'float': 'float 6s ease-in-out infinite',
+        'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
         'blob': 'blob 7s infinite',
       },
       keyframes: {
@@ -53,7 +51,7 @@ export default {
         },
         float: {
           '0%, 100%': { transform: 'translateY(0px)' },
-          '50%': { transform: 'translateY(-20px)' },
+          '50%': { transform: 'translateY(-15px)' },
         },
         blob: {
           "0%": { transform: "translate(0px, 0px) scale(1)" },
