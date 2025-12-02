@@ -1,10 +1,10 @@
 
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useApp } from '../context/AppContext';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { LayoutDashboard, ShoppingBag, Utensils, LogOut, Moon, Sun, Plus, Pencil, Trash2, Check, X, Upload, TrendingUp, DollarSign } from 'lucide-react';
+import { LayoutDashboard, ShoppingBag, Utensils, LogOut, Moon, Sun, Plus, Pencil, Trash2, Check, X, Upload, TrendingUp, DollarSign, Eye, Box, Image as ImageIcon } from 'lucide-react';
 import { MenuItem } from '../types';
 import toast from 'react-hot-toast';
 
@@ -13,6 +13,8 @@ export const SellerView: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'dashboard' | 'orders' | 'menu'>('dashboard');
   const [editingItem, setEditingItem] = useState<Partial<MenuItem> | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Stats
   const pendingOrders = orders.filter(o => o.status === 'pending');
@@ -49,13 +51,38 @@ export const SellerView: React.FC = () => {
     }
   };
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
+  const processFile = (file: File) => {
     if (file) {
       if (file.size > 350 * 1024) { toast.error('Image must be < 350KB'); return; }
       const reader = new FileReader();
       reader.onloadend = () => setEditingItem(prev => prev ? ({ ...prev, image: reader.result as string }) : null);
       reader.readAsDataURL(file);
+    }
+  };
+
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) processFile(file);
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file && file.type.startsWith('image/')) {
+      processFile(file);
+    } else {
+      toast.error('Please drop a valid image file');
     }
   };
 
@@ -225,40 +252,126 @@ export const SellerView: React.FC = () => {
 
         {/* Edit Modal */}
         {editingItem && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
-            <div className="bg-white dark:bg-dark-surface rounded-[2rem] p-8 w-full max-w-lg shadow-2xl animate-scale-in border border-white/20">
-              <h3 className="text-2xl font-black mb-6 dark:text-white">Maklumat Menu</h3>
-              <form onSubmit={handleSaveMenu} className="space-y-4">
-                 <Input label="Nama Menu" required value={editingItem.name || ''} onChange={e => setEditingItem({ ...editingItem, name: e.target.value })} />
-                 <div className="grid grid-cols-2 gap-4">
-                   <Input label="Harga (RM)" type="number" step="0.01" value={editingItem.price || ''} onChange={e => setEditingItem({ ...editingItem, price: parseFloat(e.target.value) })} />
-                   <Input label="Kategori" value={editingItem.category || ''} onChange={e => setEditingItem({ ...editingItem, category: e.target.value })} />
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in overflow-y-auto">
+            <div className="bg-white dark:bg-dark-surface rounded-[2rem] p-8 w-full max-w-4xl shadow-2xl animate-scale-in border border-white/20 relative my-8">
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-2xl font-black dark:text-white">
+                  {editingItem.id ? 'Edit Menu' : 'Tambah Menu Baru'}
+                </h3>
+                <button onClick={() => setEditingItem(null)} className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-white/10">
+                  <X size={24} className="text-slate-500" />
+                </button>
+              </div>
+
+              <form onSubmit={handleSaveMenu} className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                 {/* Left Column: Form Fields */}
+                 <div className="space-y-4">
+                    <Input label="Nama Menu" required value={editingItem.name || ''} onChange={e => setEditingItem({ ...editingItem, name: e.target.value })} />
+                    <div className="grid grid-cols-2 gap-4">
+                      <Input label="Harga (RM)" type="number" step="0.01" value={editingItem.price || ''} onChange={e => setEditingItem({ ...editingItem, price: parseFloat(e.target.value) })} />
+                      <Input label="Kategori" value={editingItem.category || ''} onChange={e => setEditingItem({ ...editingItem, category: e.target.value })} />
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-4">
+                      <Input label="Kalori (kcal)" type="number" value={editingItem.calories || ''} onChange={e => setEditingItem({ ...editingItem, calories: parseFloat(e.target.value) })} />
+                      <div className="flex flex-col">
+                        <label className="text-sm font-bold mb-2 text-slate-700 dark:text-slate-300">Diet</label>
+                        <select 
+                          className="w-full px-4 py-3 rounded-xl border-2 bg-white dark:bg-dark-surface dark:text-white border-slate-200 dark:border-slate-700 focus:border-primary outline-none"
+                          value={editingItem.dietary || 'Tidak Vegetarian'}
+                          onChange={e => setEditingItem({...editingItem, dietary: e.target.value as any})}
+                        >
+                          <option value="Tidak Vegetarian">Tidak Vegetarian</option>
+                          <option value="Vegetarian">Vegetarian</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col">
+                      <label className="text-sm font-bold mb-2 text-slate-700 dark:text-slate-300">Deskripsi</label>
+                      <textarea 
+                        className="w-full px-4 py-3 rounded-xl border-2 bg-white dark:bg-dark-surface dark:text-white border-slate-200 dark:border-slate-700 focus:border-primary outline-none resize-none h-24"
+                        value={editingItem.description || ''}
+                        onChange={e => setEditingItem({...editingItem, description: e.target.value})}
+                        placeholder="Contoh: Nasi lemak harum..."
+                      ></textarea>
+                    </div>
                  </div>
-                 
-                 <div className="p-4 bg-slate-50 dark:bg-white/5 rounded-2xl border-2 border-dashed border-slate-200 dark:border-white/10 hover:border-primary transition-colors">
-                    <div className="flex items-center gap-4">
-                       <div className="w-20 h-20 bg-white dark:bg-white/5 rounded-2xl flex items-center justify-center overflow-hidden border border-slate-100 dark:border-white/5">
-                          {editingItem.image ? (
-                             (editingItem.image.startsWith('http') || editingItem.image.startsWith('data:')) ? 
-                             <img src={editingItem.image} className="w-full h-full object-cover" /> : <span className="text-3xl">{editingItem.image}</span>
-                          ) : <Upload size={24} className="text-slate-400" />}
+
+                 {/* Right Column: specialized AR Upload & Preview */}
+                 <div className="space-y-6">
+                    <div className="flex flex-col">
+                      <label className="text-sm font-bold mb-2 text-slate-700 dark:text-slate-300 flex items-center gap-2">
+                         <Box size={16} /> 3D Image & AR Preview
+                      </label>
+                      
+                      {/* Drag & Drop Zone */}
+                      <div 
+                        onDragOver={handleDragOver}
+                        onDragLeave={handleDragLeave}
+                        onDrop={handleDrop}
+                        className={`relative group h-32 rounded-2xl border-2 border-dashed transition-all duration-300 flex flex-col items-center justify-center cursor-pointer ${
+                          isDragging 
+                            ? 'border-primary bg-primary/5 scale-[1.02]' 
+                            : 'border-slate-200 dark:border-white/10 hover:border-primary dark:hover:border-primary hover:bg-slate-50 dark:hover:bg-white/5'
+                        }`}
+                        onClick={() => fileInputRef.current?.click()}
+                      >
+                         <input ref={fileInputRef} type="file" className="hidden" accept="image/*" onChange={handleImageUpload} />
+                         <div className="flex flex-col items-center text-slate-400 group-hover:text-primary transition-colors">
+                            <Upload size={32} className="mb-2" />
+                            <p className="text-sm font-bold">Drop realistic 3D image here</p>
+                            <p className="text-xs opacity-70">or click to upload (PNG/WebP transparent)</p>
+                         </div>
+                      </div>
+                    </div>
+
+                    {/* LIVE AR PREVIEW STAGE */}
+                    <div className="relative w-full aspect-square rounded-[2rem] bg-gradient-to-b from-slate-900 to-slate-950 overflow-hidden shadow-inner border border-slate-800">
+                       <div className="absolute top-4 left-4 bg-white/10 backdrop-blur-md px-3 py-1 rounded-full text-xs text-white font-bold flex items-center gap-2">
+                          <Eye size={12} /> AR Customer View
                        </div>
-                       <div className="flex-1">
-                          <label className="block text-sm font-bold mb-2 dark:text-white">Gambar Produk</label>
-                          <div className="flex gap-2">
-                             <label className="cursor-pointer text-xs bg-slate-900 dark:bg-white dark:text-slate-900 text-white px-4 py-2.5 rounded-xl font-bold hover:opacity-90 transition-opacity">
-                                Upload
-                                <input type="file" className="hidden" accept="image/*" onChange={handleImageUpload} />
-                             </label>
-                             <input type="text" placeholder="Atau paste URL/Emoji" className="flex-1 text-sm bg-transparent border-b-2 border-slate-200 dark:border-white/10 focus:border-primary focus:outline-none dark:text-white px-2" value={editingItem.image || ''} onChange={e => setEditingItem({ ...editingItem, image: e.target.value })} />
+                       
+                       {/* Grid Background */}
+                       <div className="absolute inset-0 opacity-20" style={{backgroundImage: 'linear-gradient(rgba(255,255,255,0.05) 2px, transparent 2px), linear-gradient(90deg, rgba(255,255,255,0.05) 2px, transparent 2px)', backgroundSize: '40px 40px'}}></div>
+                       
+                       {/* Spotlight */}
+                       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-full bg-gradient-to-b from-primary/20 to-transparent opacity-50 blur-2xl pointer-events-none"></div>
+
+                       {/* The 3D Item */}
+                       <div className="absolute inset-0 flex flex-col items-center justify-center">
+                          <div className="relative animate-float transition-all duration-500">
+                             {(editingItem.image && (editingItem.image.startsWith('http') || editingItem.image.startsWith('data:'))) ? (
+                                <img src={editingItem.image} className="max-w-[180px] max-h-[180px] object-contain drop-shadow-2xl animate-wiggle-slow" alt="Preview" />
+                             ) : (
+                                <span className="text-8xl filter drop-shadow-2xl animate-wiggle-slow">{editingItem.image || '❓'}</span>
+                             )}
+                             
+                             {/* Dynamic Shadow */}
+                             <div className="absolute -bottom-8 left-1/2 -translate-x-1/2 w-32 h-8 bg-black/40 blur-xl rounded-[100%] animate-shadow-pulse"></div>
+                          </div>
+                       </div>
+                       
+                       {/* Manual Text Input Fallback */}
+                       <div className="absolute bottom-4 left-4 right-4">
+                          <div className="relative">
+                            <ImageIcon size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                            <input 
+                              type="text" 
+                              placeholder="Paste URL or Emoji manually..." 
+                              className="w-full pl-10 pr-4 py-2 bg-white/10 backdrop-blur-md text-white placeholder-white/30 rounded-xl text-xs border border-white/10 focus:border-primary outline-none"
+                              value={editingItem.image || ''}
+                              onChange={e => setEditingItem({ ...editingItem, image: e.target.value })}
+                            />
                           </div>
                        </div>
                     </div>
                  </div>
 
-                 <div className="flex gap-4 pt-4">
+                 {/* Action Buttons */}
+                 <div className="col-span-1 md:col-span-2 flex gap-4 pt-4 border-t border-slate-100 dark:border-white/10">
                     <Button type="button" variant="ghost" onClick={() => setEditingItem(null)} className="flex-1">Batal</Button>
-                    <Button type="submit" isLoading={isSaving} className="flex-1">Simpan</Button>
+                    <Button type="submit" isLoading={isSaving} className="flex-1 shadow-lg shadow-primary/30">Simpan Menu</Button>
                  </div>
               </form>
             </div>
