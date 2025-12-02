@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { MenuItem, Order, CartItem, User, ViewState } from '../types';
 import { Storage } from '../utils/storage';
+import { supabase } from '../utils/supabaseClient';
 import { DEFAULT_MENU_ITEMS, SERVICE_FEE, GOOGLE_SHEET_SCRIPT_URL, TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID } from '../constants';
 import toast, { Toaster } from 'react-hot-toast';
 
@@ -9,11 +10,12 @@ interface AppContextType {
   login: (user: User) => void;
   logout: () => void;
   menuItems: MenuItem[];
-  // Fix: Use React.Dispatch<React.SetStateAction<T>> to allow functional updates
   setMenuItems: React.Dispatch<React.SetStateAction<MenuItem[]>>;
+  saveMenuItem: (item: MenuItem) => Promise<void>;
+  deleteMenuItemItem: (id: string) => Promise<void>;
   orders: Order[];
-  // Fix: Use React.Dispatch<React.SetStateAction<T>> to allow functional updates
   setOrders: React.Dispatch<React.SetStateAction<Order[]>>;
+  updateOrderStatus: (id: string, status: 'completed' | 'cancelled') => Promise<void>;
   cart: CartItem[];
   addToCart: (item: MenuItem) => void;
   removeFromCart: (id: string) => void;
@@ -36,10 +38,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
   const [currentView, setCurrentView] = useState<ViewState>('login');
 
-  // Load initial data
+  // Load Theme
   useEffect(() => {
-    setMenuItems(Storage.getMenuItems());
-    setOrders(Storage.getOrders());
     const storedTheme = Storage.getTheme();
     setTheme(storedTheme);
     if (storedTheme === 'dark') {
@@ -47,14 +47,94 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, []);
 
-  // Save data on changes
+  // --------------------------------------------------------------
+  // SUPABASE REAL-TIME DATA FETCHING & SUBSCRIPTION
+  // --------------------------------------------------------------
   useEffect(() => {
-    if (menuItems.length > 0) Storage.saveMenuItems(menuItems);
-  }, [menuItems]);
+    // 1. Fetch Initial Menu
+    const fetchMenu = async () => {
+      const { data, error } = await supabase.from('menu_items').select('*');
+      if (error) console.error('Error fetching menu:', error);
+      else {
+        // If DB is empty, use default and insert them (optional, logic omitted for safety)
+        if (data && data.length > 0) {
+          setMenuItems(data as MenuItem[]);
+        } else {
+          setMenuItems(DEFAULT_MENU_ITEMS); // Fallback if DB empty
+        }
+      }
+    };
 
-  useEffect(() => {
-    if (orders.length > 0) Storage.saveOrders(orders);
-  }, [orders]);
+    // 2. Fetch Initial Orders
+    const fetchOrders = async () => {
+      const { data, error } = await supabase.from('orders').select('*');
+      if (error) console.error('Error fetching orders:', error);
+      else if (data) setOrders(data as Order[]);
+    };
+
+    fetchMenu();
+    fetchOrders();
+
+    // 3. Real-time Subscriptions
+    const menuChannel = supabase.channel('menu-updates')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'menu_items' }, (payload) => {
+        if (payload.eventType === 'INSERT') {
+          setMenuItems(prev => [...prev, payload.new as MenuItem]);
+        } else if (payload.eventType === 'UPDATE') {
+          setMenuItems(prev => prev.map(item => item.id === payload.new.id ? payload.new as MenuItem : item));
+        } else if (payload.eventType === 'DELETE') {
+          setMenuItems(prev => prev.filter(item => item.id !== payload.old.id));
+        }
+      })
+      .subscribe();
+
+    const orderChannel = supabase.channel('order-updates')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, (payload) => {
+        if (payload.eventType === 'INSERT') {
+          const newOrder = payload.new as Order;
+          setOrders(prev => [newOrder, ...prev]);
+          toast('Pesanan Baru Masuk!', { icon: '🔔' });
+        } else if (payload.eventType === 'UPDATE') {
+          setOrders(prev => prev.map(o => o.id === payload.new.id ? payload.new as Order : o));
+        }
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(menuChannel);
+      supabase.removeChannel(orderChannel);
+    };
+  }, []);
+
+  // --------------------------------------------------------------
+  // DATA OPERATIONS
+  // --------------------------------------------------------------
+
+  const saveMenuItem = async (item: MenuItem) => {
+    // Upsert (Insert or Update based on ID)
+    const { error } = await supabase.from('menu_items').upsert(item);
+    if (error) {
+      console.error('Error saving menu item:', error);
+      toast.error('Gagal simpan menu ke database');
+    }
+  };
+
+  const deleteMenuItemItem = async (id: string) => {
+    const { error } = await supabase.from('menu_items').delete().eq('id', id);
+    if (error) {
+       console.error('Error deleting item:', error);
+       toast.error('Gagal padam menu');
+    }
+  };
+
+  const updateOrderStatus = async (id: string, status: 'completed' | 'cancelled') => {
+    const { error } = await supabase.from('orders').update({ status }).eq('id', id);
+    if (error) {
+      toast.error('Gagal kemaskini status');
+    } else {
+      toast.success(`Order marked as ${status}`);
+    }
+  };
 
   const toggleTheme = () => {
     const newTheme = theme === 'light' ? 'dark' : 'light';
@@ -134,7 +214,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       createdAt: new Date().toISOString()
     };
 
-    // 1. Google Sheet Integration
+    // 1. Save to Supabase
+    const { error } = await supabase.from('orders').insert(newOrder);
+    if (error) {
+      console.error('Supabase Error:', error);
+      toast.error('Gagal menghantar pesanan ke database.');
+      return null;
+    }
+
+    // 2. Google Sheet Integration (Fire and forget)
     if (GOOGLE_SHEET_SCRIPT_URL && GOOGLE_SHEET_SCRIPT_URL.startsWith('https')) {
       try {
         const formData = new URLSearchParams();
@@ -150,20 +238,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         formData.append('total', newOrder.total.toFixed(2));
         formData.append('status', newOrder.status);
 
-        console.log('Sending order to Google Sheet...');
-
         fetch(GOOGLE_SHEET_SCRIPT_URL, {
           method: 'POST',
           body: formData,
           mode: 'no-cors',
           headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
         }).catch(err => console.error('Google Sheet Sync Error:', err));
-      } catch (e) {
-        console.error("Failed to sync to Google Sheet", e);
-      }
+      } catch (e) { console.error(e); }
     }
 
-    // 2. Telegram Bot Integration
+    // 3. Telegram Bot Integration
     if (TELEGRAM_BOT_TOKEN && TELEGRAM_CHAT_ID) {
       try {
         const itemsList = newOrder.items
@@ -179,7 +263,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           `📅 Tarikh: ${new Date(newOrder.createdAt).toLocaleString('ms-MY')}`;
 
         const telegramUrl = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`;
-        
         fetch(telegramUrl, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -189,12 +272,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             parse_mode: 'Markdown'
           })
         }).catch(err => console.error('Telegram Error:', err));
-      } catch (e) {
-        console.error("Failed to send Telegram notification", e);
-      }
+      } catch (e) { console.error(e); }
     }
 
-    setOrders(prev => [newOrder, ...prev]);
     clearCart();
     return newOrder;
   };
@@ -202,8 +282,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   return (
     <AppContext.Provider value={{
       user, login, logout,
-      menuItems, setMenuItems,
-      orders, setOrders,
+      menuItems, setMenuItems, saveMenuItem, deleteMenuItemItem,
+      orders, setOrders, updateOrderStatus,
       cart, addToCart, removeFromCart, updateCartQuantity, clearCart, placeOrder,
       theme, toggleTheme,
       currentView, setCurrentView

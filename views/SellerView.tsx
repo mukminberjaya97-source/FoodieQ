@@ -8,9 +8,10 @@ import { MenuItem } from '../types';
 import toast from 'react-hot-toast';
 
 export const SellerView: React.FC = () => {
-  const { orders, menuItems, setMenuItems, setOrders, theme, toggleTheme, logout } = useApp();
+  const { orders, menuItems, saveMenuItem, deleteMenuItemItem, updateOrderStatus, theme, toggleTheme, logout } = useApp();
   const [activeTab, setActiveTab] = useState<'dashboard' | 'orders' | 'menu'>('dashboard');
   const [editingItem, setEditingItem] = useState<Partial<MenuItem> | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
 
   // Stats
   const pendingOrders = orders.filter(o => o.status === 'pending');
@@ -30,36 +31,35 @@ export const SellerView: React.FC = () => {
     return acc;
   }, []).slice(-7);
 
-  const updateOrderStatus = (id: string, status: 'completed' | 'cancelled') => {
-    setOrders(prev => prev.map(o => o.id === id ? { ...o, status } : o));
-    toast.success(`Order marked as ${status}`);
-  };
-
-  const handleSaveMenu = (e: React.FormEvent) => {
+  const handleSaveMenu = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingItem) return;
+    setIsSaving(true);
+
+    let itemToSave: MenuItem;
 
     if (editingItem.id) {
       // Edit
-      setMenuItems(prev => prev.map(i => i.id === editingItem.id ? { ...i, ...editingItem } as MenuItem : i));
-      toast.success('Menu updated');
+      itemToSave = { ...editingItem } as MenuItem;
     } else {
       // Add
-      const newItem: MenuItem = {
+      itemToSave = {
         ...editingItem,
-        id: `custom_${Date.now()}`,
+        id: `custom_${Date.now()}`, // Simple ID generation
         available: true,
         rating: 5.0
       } as MenuItem;
-      setMenuItems(prev => [...prev, newItem]);
-      toast.success('Menu added');
     }
+
+    await saveMenuItem(itemToSave);
+    setIsSaving(false);
     setEditingItem(null);
+    toast.success('Menu saved to Database');
   };
 
-  const deleteMenu = (id: string) => {
+  const handleDeleteMenu = async (id: string) => {
     if (confirm('Are you sure you want to delete this item?')) {
-      setMenuItems(prev => prev.filter(i => i.id !== id));
+      await deleteMenuItemItem(id);
       toast.success('Item deleted');
     }
   };
@@ -67,9 +67,9 @@ export const SellerView: React.FC = () => {
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      // Limit to 350KB to safely store in LocalStorage (Quota ~5MB total)
+      // Limit to 350KB to safely store in Text Column
       if (file.size > 350 * 1024) {
-        toast.error('File terlalu besar! Sila guna gambar < 350KB untuk kelancaran aplikasi.');
+        toast.error('File terlalu besar! Sila guna gambar < 350KB.');
         return;
       }
       
@@ -224,7 +224,7 @@ export const SellerView: React.FC = () => {
                       <button onClick={() => setEditingItem(item)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-600 dark:text-slate-400 transition-colors">
                         <Pencil size={18} />
                       </button>
-                      <button onClick={() => deleteMenu(item.id)} className="p-2 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg text-red-500 transition-colors">
+                      <button onClick={() => handleDeleteMenu(item.id)} className="p-2 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg text-red-500 transition-colors">
                         <Trash2 size={18} />
                       </button>
                     </div>
@@ -322,7 +322,7 @@ export const SellerView: React.FC = () => {
                 </div>
                 <div className="flex gap-4 pt-4">
                   <Button type="button" variant="secondary" className="flex-1" onClick={() => setEditingItem(null)}>Cancel</Button>
-                  <Button type="submit" className="flex-1">Save Item</Button>
+                  <Button type="submit" isLoading={isSaving} className="flex-1">Save Item</Button>
                 </div>
               </form>
             </div>

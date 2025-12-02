@@ -29,3 +29,9 @@ export const GOOGLE_SHEET_SCRIPT_URL = "https://script.google.com/macros/s/AKfyc
 // ------------------------------------------------------------------
 export const TELEGRAM_BOT_TOKEN = ""; // Contoh: 7033766890:AAH...
 export const TELEGRAM_CHAT_ID = "";   // Contoh: 123456789
+
+// ------------------------------------------------------------------
+// SUPABASE CONFIGURATION
+// ------------------------------------------------------------------
+export const SUPABASE_URL = "https://rcehamzefkujehozkbnj.supabase.co";
+export const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJjZWhhbXplZmt1amVob3prYm5qIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQ2NzYwODcsImV4cCI6MjA4MDI1MjA4N30.spUksLcisp8zbdjQL_uKpOXuaSCIci8o-PCyt2UQxhQ";
