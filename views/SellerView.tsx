@@ -4,12 +4,12 @@ import { useApp } from '../context/AppContext';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { LayoutDashboard, ShoppingBag, Utensils, LogOut, Moon, Sun, Plus, Pencil, Trash2, Check, X, Upload, TrendingUp, DollarSign, Eye, Box, Image as ImageIcon, EyeOff, RotateCcw } from 'lucide-react';
+import { LayoutDashboard, ShoppingBag, Utensils, LogOut, Moon, Sun, Plus, Pencil, Trash2, Check, X, Upload, TrendingUp, DollarSign, Eye, Box, Image as ImageIcon, EyeOff, RotateCcw, RefreshCw } from 'lucide-react';
 import { MenuItem } from '../types';
 import toast from 'react-hot-toast';
 
 export const SellerView: React.FC = () => {
-  const { orders, menuItems, saveMenuItem, deleteMenuItemItem, updateOrderStatus, deleteOrder, theme, toggleTheme, logout, seedDatabase } = useApp();
+  const { orders, menuItems, saveMenuItem, deleteMenuItemItem, updateOrderStatus, deleteOrder, theme, toggleTheme, logout, seedDatabase, refreshData, isLoading } = useApp();
   const [activeTab, setActiveTab] = useState<'dashboard' | 'orders' | 'menu'>('dashboard');
   const [editingItem, setEditingItem] = useState<Partial<MenuItem> | null>(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -55,7 +55,7 @@ export const SellerView: React.FC = () => {
   };
 
   const handleDeleteOrder = async (id: string) => {
-     if(confirm('Padam rekod pesanan ini secara kekal?')) {
+     if(confirm('Padam rekod pesanan ini secara kekal? Tindakan ini tidak boleh dikembalikan.')) {
         await deleteOrder(id);
      }
   };
@@ -82,6 +82,11 @@ export const SellerView: React.FC = () => {
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) processFile(file);
+  };
+
+  const handleRefresh = async () => {
+    await refreshData();
+    toast.success('Data dikemaskini');
   };
 
   return (
@@ -138,9 +143,23 @@ export const SellerView: React.FC = () => {
              </h1>
              <p className="text-slate-500 dark:text-slate-400 text-sm font-medium">Selamat datang kembali, Admin.</p>
            </div>
-           {activeTab === 'menu' && (
-             <Button onClick={() => setEditingItem({})} icon={<Plus size={18} strokeWidth={3} />}>Tambah Menu</Button>
-           )}
+           
+           <div className="flex items-center gap-3">
+             <Button 
+               onClick={handleRefresh} 
+               variant="secondary" 
+               className="px-4 py-2.5 rounded-xl h-12"
+               disabled={isLoading}
+               title="Refresh Data"
+             >
+               <RefreshCw size={18} className={`${isLoading ? 'animate-spin' : ''}`} />
+               <span className="hidden md:inline ml-2 text-sm">Refresh Data</span>
+             </Button>
+
+             {activeTab === 'menu' && (
+               <Button onClick={() => setEditingItem({})} icon={<Plus size={18} strokeWidth={3} />}>Tambah Menu</Button>
+             )}
+           </div>
         </div>
 
         {activeTab === 'dashboard' && (
@@ -219,7 +238,13 @@ export const SellerView: React.FC = () => {
                          <span className={`px-4 py-2 rounded-xl text-sm font-black uppercase tracking-wide ${order.status === 'completed' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'}`}>
                            {order.status}
                          </span>
-                         <button onClick={() => handleDeleteOrder(order.id)} className="p-2 text-slate-400 hover:text-red-500 transition-colors" title="Padam Rekod"><Trash2 size={18}/></button>
+                         <button 
+                            onClick={() => handleDeleteOrder(order.id)} 
+                            className="p-2.5 bg-red-50 dark:bg-red-900/20 rounded-xl text-red-500 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/40 transition-colors" 
+                            title="Padam Rekod Secara Kekal"
+                         >
+                            <Trash2 size={18}/>
+                         </button>
                      </div>
                    )}
                 </div>

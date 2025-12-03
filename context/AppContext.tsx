@@ -1,5 +1,5 @@
 
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { MenuItem, Order, CartItem, User, ViewState } from '../types';
 import { Storage } from '../utils/storage';
 import { supabase } from '../utils/supabaseClient';
@@ -29,6 +29,7 @@ interface AppContextType {
   currentView: ViewState;
   setCurrentView: (view: ViewState) => void;
   isLoading: boolean;
+  refreshData: () => Promise<void>;
   seedDatabase: () => Promise<void>;
 }
 
@@ -60,7 +61,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, []);
 
   // Helper to map Order DB Row to App Type
-  const mapOrderRow = (r: any): Order => ({
+  const mapOrderRow = useCallback((r: any): Order => ({
     id: r.id,
     customerName: r.customer_name,
     customerPhone: r.customer_phone,
@@ -70,25 +71,38 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     total: r.total,
     status: r.status,
     createdAt: r.created_at
-  });
+  }), []);
 
-  useEffect(() => {
-    const fetchInitialData = async () => {
-      setIsLoading(true);
-      
-      const { data: menuData } = await supabase.from('menu_items').select('*');
-      // DO NOT fallback to default if empty, let the admin seed it.
-      if (menuData) setMenuItems(menuData as MenuItem[]);
+  const refreshData = async () => {
+    setIsLoading(true);
+    try {
+      // Fetch Menu
+      const { data: menuData, error: menuError } = await supabase.from('menu_items').select('*');
+      if (menuError) {
+        console.error('Error fetching menu:', menuError);
+        toast.error('Gagal memuatkan menu');
+      } else if (menuData) {
+        setMenuItems(menuData as MenuItem[]);
+      }
 
-      const { data: orderData } = await supabase.from('orders').select('*');
-      if (orderData) {
+      // Fetch Orders
+      const { data: orderData, error: orderError } = await supabase.from('orders').select('*');
+      if (orderError) {
+        console.error('Error fetching orders:', orderError);
+        toast.error('Gagal memuatkan pesanan');
+      } else if (orderData) {
         setOrders(orderData.map(mapOrderRow));
       }
-      
+    } catch (error) {
+      console.error('Refresh error:', error);
+      toast.error('Ralat sambungan');
+    } finally {
       setIsLoading(false);
-    };
+    }
+  };
 
-    fetchInitialData();
+  useEffect(() => {
+    refreshData();
 
     const subscription = supabase.channel('foodieq-realtime')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'menu_items' }, (payload) => {
@@ -118,7 +132,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return () => {
       supabase.removeChannel(subscription);
     };
-  }, []);
+  }, [mapOrderRow]);
 
   const saveMenuItem = async (item: MenuItem) => {
     setMenuItems(prev => {
@@ -154,7 +168,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const seedDatabase = async () => {
     const { error } = await supabase.from('menu_items').insert(DEFAULT_MENU_ITEMS);
     if (error) toast.error('Gagal memuatkan default menu: ' + error.message);
-    else toast.success('Default menu dimuatkan!');
+    else {
+      toast.success('Default menu dimuatkan!');
+      refreshData();
+    }
   };
 
   const toggleTheme = () => {
@@ -246,7 +263,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     // 2. Third Party Integrations (Fire & Forget)
-    // Wrap in try-catch blocks individually so one failure doesn't stop the flow
     
     // Google Sheets
     if (GOOGLE_SHEET_SCRIPT_URL && GOOGLE_SHEET_SCRIPT_URL.startsWith('https')) {
@@ -295,7 +311,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       cart, addToCart, removeFromCart, updateCartQuantity, clearCart, placeOrder,
       theme, toggleTheme,
       currentView, setCurrentView,
-      isLoading, seedDatabase
+      isLoading, refreshData, seedDatabase
     }}>
       <Toaster position="top-right" toastOptions={{
         style: { background: theme === 'dark' ? '#1e293b' : '#fff', color: theme === 'dark' ? '#fff' : '#0f172a' }
